@@ -5,6 +5,10 @@ Dashboard responsivo de alta performance para visualização e interação com e
 
 🔗 Página do Projeto: spgmarcos.github.io/SmartControl/
 
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/765d36a1-53f3-4fbd-bec5-aa16c9f197ff"" width="400" alt="Dashboard de Irrigação">
+</div>
+
 ## 📌 Visão Geral
 O SmartControl é o hub visual de controle para dispositivos IoT. Este repositório reúne o frontend da aplicação, desenvolvido para atuar como o painel de comando central de automações residenciais e agrícolas. O foco principal é a entrega de dados de sensores e o controle de atuadores com baixa latência e alta disponibilidade.
 
