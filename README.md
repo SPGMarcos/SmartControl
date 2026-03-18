@@ -6,7 +6,7 @@ Dashboard responsivo de alta performance para visualização e interação com e
 🔗 Página do Projeto: spgmarcos.github.io/SmartControl/
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/765d36a1-53f3-4fbd-bec5-aa16c9f197ff"" width="400" alt="Dashboard de Irrigação">
+  <img src="https://github.com/user-attachments/assets/765d36a1-53f3-4fbd-bec5-aa16c9f197ff"" width="800" alt="Dashboard de Irrigação">
 </div>
 
 ## 📌 Visão Geral
