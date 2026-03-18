@@ -8,7 +8,7 @@ Dashboard responsivo de alta performance para visualização e interação com e
 ## 📌 Visão Geral
 O SmartControl é o hub visual de controle para dispositivos IoT. Este repositório reúne o frontend da aplicação, desenvolvido para atuar como o painel de comando central de automações residenciais e agrícolas. O foco principal é a entrega de dados de sensores e o controle de atuadores com baixa latência e alta disponibilidade.
 
-O sistema permite:
+O sistema irá permitir:
 
 - Monitorar sensores (umidade, temperatura, presença) em tempo real.
 
@@ -41,11 +41,11 @@ Desenvolver uma interface de controle IoT que seja:
       Sensores e Atuadores (Hardware)
 
 ## 🔌 Compatibilidade de Hardware
-Microcontroladores: ESP8266 (NodeMCU/Wemos) e ESP32.
+- Microcontroladores: ESP8266 (NodeMCU/Wemos) e ESP32.
 
-Protocolos: HTTP/HTTPS, WebSockets e MQTT.
+- Protocolos: HTTP/HTTPS, WebSockets e MQTT.
 
-Integrações: Home Assistant, Node-RED e Brokers MQTT (Mosquitto/HiveMQ).
+- Integrações: Home Assistant, Node-RED e Brokers MQTT (Mosquitto/HiveMQ).
 
 ## ⚙️ Principais Funcionalidades
 ### 1. Dashboard Interativo
