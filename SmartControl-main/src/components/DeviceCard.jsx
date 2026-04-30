@@ -1,11 +1,18 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Droplets, Lightbulb, Zap, Gauge, Trash2 } from 'lucide-react';
+import { Droplets, Gauge, Lightbulb, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import ConfirmDialog from './ConfirmDialog';
+import {
+  getDeviceModelLabel,
+  getDeviceProjectName,
+  getDeviceProtocolLabel,
+  getLastConnection,
+  isDeviceOnline,
+} from '@/lib/deviceProjects';
 
-const DeviceCard = ({ device, onToggle, onDelete, index, showDelete }) => {
+const DeviceCard = ({ device, onToggle, onDelete, index = 0, showDelete }) => {
   const icons = {
     relay: Droplets,
     light: Lightbulb,
@@ -16,6 +23,8 @@ const DeviceCard = ({ device, onToggle, onDelete, index, showDelete }) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const Icon = icons[device.type] || Zap;
+  const online = isDeviceOnline(device);
+  const lastConnection = getLastConnection(device);
 
   const handleDeleteClick = () => {
     setConfirmOpen(true);
@@ -42,7 +51,7 @@ const DeviceCard = ({ device, onToggle, onDelete, index, showDelete }) => {
           </div>
           <div>
             <h3 className="text-lg font-bold text-white">{device.name}</h3>
-            <p className="text-gray-400 text-sm capitalize">{device.type}</p>
+            <p className="text-gray-400 text-sm">{getDeviceProjectName(device)}</p>
           </div>
         </div>
         {showDelete && (
@@ -58,22 +67,38 @@ const DeviceCard = ({ device, onToggle, onDelete, index, showDelete }) => {
       </div>
 
       <div className="flex items-center justify-between">
-        <span className="text-gray-400 text-sm">
-          {device.status ? 'Ligado' : 'Desligado'}
-        </span>
+        <div>
+          <span className="text-gray-400 text-sm">
+            {device.status ? 'Ligado' : 'Desligado'}
+          </span>
+          <div className="mt-1 flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${online ? 'bg-green-400' : 'bg-gray-600'}`}></span>
+            <span className="text-xs text-gray-500">{online ? 'Online' : 'Offline'}</span>
+          </div>
+        </div>
         <Switch
-          checked={device.status}
+          checked={Boolean(device.status)}
           onCheckedChange={() => onToggle(device.id)}
         />
       </div>
 
-      <div className="mt-4 pt-4 border-t border-purple-500/20">
+      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-purple-500/20 pt-4">
+        <div className="rounded-lg bg-black/30 p-3">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Hardware</p>
+          <p className="mt-1 text-sm text-gray-200">{getDeviceModelLabel(device)}</p>
+        </div>
+        <div className="rounded-lg bg-black/30 p-3">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Protocolo</p>
+          <p className="mt-1 text-sm text-gray-200">{getDeviceProtocolLabel(device)}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 border-t border-purple-500/20 pt-4">
         <p className="text-gray-500 text-xs">
-          Última conexão: {new Date(device.lastConnection).toLocaleString('pt-BR')}
+          Última conexão: {lastConnection ? new Date(lastConnection).toLocaleString('pt-BR') : 'Aguardando telemetria'}
         </p>
       </div>
 
-      {/* Modal de confirmação */}
       <ConfirmDialog
         open={confirmOpen}
         title="Excluir dispositivo?"

@@ -7,8 +7,9 @@ import DeviceCard from '@/components/DeviceCard';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Layers, Plus } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { groupDevicesByProject } from '@/lib/deviceProjects';
 
 const Devices = () => {
   const { user } = useAuth();
@@ -96,16 +97,33 @@ const Devices = () => {
           {loading ? (
             <div className="text-white">Carregando dispositivos...</div>
           ) : devices.length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {devices.map((device, index) => (
-                <DeviceCard
-                  key={device.id}
-                  device={device}
-                  onToggle={() => handleDeviceToggle(device.id, device.status)}
-                  onDelete={() => handleDeviceDelete(device.id)}
-                  index={index}
-                  showDelete
-                />
+            <div className="space-y-8">
+              {groupDevicesByProject(devices).map((project) => (
+                <section key={project.id} className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-xl border border-purple-400/30 bg-purple-500/10 p-2">
+                      <Layers className="h-5 w-5 text-purple-300" />
+                    </span>
+                    <div>
+                      <h2 className="text-2xl font-bold text-white">{project.name}</h2>
+                      <p className="text-sm text-gray-400">
+                        {project.totalDevices} dispositivo{project.totalDevices > 1 ? 's' : ''} neste projeto
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {project.devices.map((device, index) => (
+                      <DeviceCard
+                        key={device.id}
+                        device={device}
+                        onToggle={() => handleDeviceToggle(device.id, device.status)}
+                        onDelete={() => handleDeviceDelete(device.id)}
+                        index={index}
+                        showDelete
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           ) : (

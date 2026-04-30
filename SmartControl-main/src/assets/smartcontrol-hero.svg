@@ -1,0 +1,114 @@
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SmartControl automation dashboard</title>
+  <desc id="desc">Technology illustration with smart home, irrigation, sensors and IoT dashboard elements.</desc>
+  <defs>
+    <radialGradient id="glowMain" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(730 246) rotate(132) scale(590 530)">
+      <stop stop-color="#6D28D9" stop-opacity="0.7"/>
+      <stop offset="0.48" stop-color="#2E1065" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#050505" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="panel" x1="156" y1="100" x2="1060" y2="694" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#15121E"/>
+      <stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+    <linearGradient id="purpleLine" x1="204" y1="150" x2="985" y2="612" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A78BFA"/>
+      <stop offset="0.5" stop-color="#6D28D9"/>
+      <stop offset="1" stop-color="#2E1065"/>
+    </linearGradient>
+    <linearGradient id="card" x1="236" y1="168" x2="934" y2="634" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18151F" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#09090B" stop-opacity="0.96"/>
+    </linearGradient>
+    <filter id="shadow" x="105" y="60" width="990" height="650" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="32" stdDeviation="38" flood-color="#000000" flood-opacity="0.45"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="30" flood-color="#6D28D9" flood-opacity="0.22"/>
+    </filter>
+    <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse">
+      <path d="M 42 0 L 0 0 0 42" stroke="#FFFFFF" stroke-opacity="0.045" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="760" rx="34" fill="#050505"/>
+  <rect width="1200" height="760" rx="34" fill="url(#glowMain)"/>
+  <rect x="22" y="22" width="1156" height="716" rx="28" fill="url(#grid)" opacity="0.72"/>
+
+  <g opacity="0.58">
+    <path d="M120 580C230 508 307 515 418 574C544 641 612 642 735 563C850 489 944 481 1088 558" stroke="#6D28D9" stroke-opacity="0.28" stroke-width="2"/>
+    <path d="M117 612C230 535 315 540 430 606C553 677 637 664 758 591C870 523 969 513 1090 590" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="155" y="90" width="890" height="560" rx="34" fill="url(#panel)" stroke="#6D28D9" stroke-opacity="0.38" stroke-width="2"/>
+    <rect x="182" y="118" width="836" height="504" rx="24" fill="url(#card)" stroke="url(#purpleLine)" stroke-opacity="0.65"/>
+  </g>
+
+  <g opacity="0.9">
+    <circle cx="230" cy="166" r="7" fill="#A78BFA"/>
+    <circle cx="258" cy="166" r="7" fill="#6D28D9"/>
+    <circle cx="286" cy="166" r="7" fill="#3B0764"/>
+    <rect x="333" y="156" width="190" height="20" rx="10" fill="#FFFFFF" fill-opacity="0.08"/>
+    <rect x="786" y="154" width="166" height="24" rx="12" fill="#6D28D9" fill-opacity="0.2" stroke="#A78BFA" stroke-opacity="0.25"/>
+  </g>
+
+  <g>
+    <rect x="225" y="220" width="344" height="316" rx="26" fill="#0B0B0F" stroke="#FFFFFF" stroke-opacity="0.08"/>
+    <path d="M288 374V326L397 244L505 326V464C505 477.255 494.255 488 481 488H312C298.745 488 288 477.255 288 464V374Z" fill="#12101A" stroke="#A78BFA" stroke-opacity="0.48" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M329 445C340 383 378 356 436 360C424 415 390 447 329 445Z" fill="#6D28D9" fill-opacity="0.54"/>
+    <path d="M391 490C396 434 423 397 465 373C480 421 458 465 391 490Z" fill="#FFFFFF" fill-opacity="0.13"/>
+    <path d="M385 491C384 431 365 403 333 384" stroke="#D8B4FE" stroke-opacity="0.78" stroke-width="7" stroke-linecap="round"/>
+    <path d="M390 491C408 449 436 426 466 413" stroke="#D8B4FE" stroke-opacity="0.68" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="469" cy="384" r="34" fill="#D8B4FE" fill-opacity="0.16" stroke="#A78BFA" stroke-opacity="0.45"/>
+    <path d="M469 362V387" stroke="#F5F3FF" stroke-opacity="0.82" stroke-width="6" stroke-linecap="round"/>
+    <path d="M457 399H481" stroke="#F5F3FF" stroke-opacity="0.82" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <g>
+    <rect x="620" y="220" width="330" height="92" rx="22" fill="#111018" stroke="#A78BFA" stroke-opacity="0.18"/>
+    <rect x="648" y="248" width="44" height="44" rx="14" fill="#6D28D9" fill-opacity="0.22"/>
+    <path d="M658 271C670 252 683 252 695 271" stroke="#D8B4FE" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="676" cy="278" r="6" fill="#D8B4FE"/>
+    <rect x="720" y="248" width="120" height="12" rx="6" fill="#FFFFFF" fill-opacity="0.74"/>
+    <rect x="720" y="274" width="184" height="10" rx="5" fill="#FFFFFF" fill-opacity="0.18"/>
+  </g>
+
+  <g>
+    <rect x="620" y="338" width="156" height="198" rx="22" fill="#111018" stroke="#A78BFA" stroke-opacity="0.18"/>
+    <path d="M698 384C731 422 724 470 698 497C672 470 665 422 698 384Z" fill="#6D28D9" fill-opacity="0.55"/>
+    <path d="M698 412V505" stroke="#F5F3FF" stroke-opacity="0.74" stroke-width="6" stroke-linecap="round"/>
+    <path d="M667 463C678 456 687 455 698 461" stroke="#F5F3FF" stroke-opacity="0.55" stroke-width="5" stroke-linecap="round"/>
+    <text x="650" y="376" fill="#F5F3FF" fill-opacity="0.75" font-family="Arial, sans-serif" font-size="16" font-weight="700">Irrigation</text>
+  </g>
+
+  <g>
+    <rect x="794" y="338" width="156" height="198" rx="22" fill="#111018" stroke="#A78BFA" stroke-opacity="0.18"/>
+    <circle cx="872" cy="424" r="48" fill="#6D28D9" fill-opacity="0.2" stroke="#A78BFA" stroke-opacity="0.35"/>
+    <path d="M847 424H897" stroke="#F5F3FF" stroke-opacity="0.75" stroke-width="8" stroke-linecap="round"/>
+    <path d="M872 399V449" stroke="#F5F3FF" stroke-opacity="0.75" stroke-width="8" stroke-linecap="round"/>
+    <path d="M854 478H890" stroke="#A78BFA" stroke-width="7" stroke-linecap="round"/>
+    <text x="832" y="376" fill="#F5F3FF" fill-opacity="0.75" font-family="Arial, sans-serif" font-size="16" font-weight="700">Sensors</text>
+  </g>
+
+  <g stroke="#A78BFA" stroke-opacity="0.36" stroke-width="3">
+    <path d="M568 378H620"/>
+    <path d="M568 441H620"/>
+    <path d="M776 438H794"/>
+    <path d="M397 220V176H600V220"/>
+    <path d="M600 176H872V220"/>
+  </g>
+
+  <g>
+    <circle cx="600" cy="176" r="8" fill="#D8B4FE"/>
+    <circle cx="568" cy="378" r="8" fill="#D8B4FE"/>
+    <circle cx="568" cy="441" r="8" fill="#D8B4FE"/>
+    <circle cx="776" cy="438" r="8" fill="#D8B4FE"/>
+  </g>
+
+  <g>
+    <rect x="250" y="562" width="700" height="34" rx="17" fill="#FFFFFF" fill-opacity="0.06"/>
+    <rect x="272" y="573" width="130" height="12" rx="6" fill="#A78BFA" fill-opacity="0.55"/>
+    <rect x="428" y="573" width="96" height="12" rx="6" fill="#FFFFFF" fill-opacity="0.22"/>
+    <rect x="550" y="573" width="168" height="12" rx="6" fill="#FFFFFF" fill-opacity="0.18"/>
+    <rect x="744" y="573" width="150" height="12" rx="6" fill="#6D28D9" fill-opacity="0.52"/>
+  </g>
+</svg>

@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/SupabaseAuthContext'
 import Layout from '@/components/Layout'
 import LoadingScreen from '@/components/LoadingScreen'
-import path from 'path'
+import { isSessionExpired } from '@/lib/security'
 
 // Lazy loading dos componentes
 const Home = React.lazy(() => import('@/pages/Home'))
@@ -19,15 +19,16 @@ const Admin = React.lazy(() => import('@/pages/Admin'))
 
 // Componentes de Rota Protegida
 const PrivateRoute = ({ children }) => {
-  const { user, loading } = useAuth()
+  const { user, session, loading } = useAuth()
   if (loading) return <LoadingScreen />
-  return user ? children : <Navigate to="/login" replace />
+  return user && session && !isSessionExpired(session) ? children : <Navigate to="/login" replace />
 }
 
 const AdminRoute = ({ children }) => {
-  const { user, loading } = useAuth()
+  const { user, session, loading } = useAuth()
   if (loading) return <LoadingScreen />
-  return user?.user_metadata?.role === 'admin'
+  const role = user?.app_metadata?.role || user?.user_metadata?.role
+  return user && session && !isSessionExpired(session) && role === 'admin'
     ? children
     : <Navigate to="/dashboard" replace />
 }

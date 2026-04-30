@@ -6,7 +6,9 @@ import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import ThemeToggle from '@/components/ThemeToggle';
 import { UserPlus } from 'lucide-react';
+import { normalizeEmail, sanitizeText, validateDisplayName, validateEmail, validatePassword } from '@/lib/security';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -16,23 +18,39 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
   const { signUp } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (password !== confirmPassword) {
-      alert('As senhas não coincidem!');
+    setFormError('');
+
+    const safeName = sanitizeText(name, 80);
+    const normalizedEmail = normalizeEmail(email);
+    const nameError = validateDisplayName(safeName);
+    const emailError = validateEmail(normalizedEmail);
+    const passwordError = validatePassword(password);
+
+    if (nameError || emailError || passwordError) {
+      setFormError(nameError || emailError || passwordError);
       return;
     }
+
+    if (password !== confirmPassword) {
+      setFormError('As senhas não coincidem.');
+      return;
+    }
+
     setLoading(true);
-    const { error } = await signUp(email, password, {
+    const { error } = await signUp(normalizedEmail, password, {
       data: {
-        full_name: name,
-        role: 'user'
-      }
+        full_name: safeName,
+        role: 'user',
+      },
     });
     setLoading(false);
+
     if (!error) {
       navigate('/login');
     }
@@ -47,7 +65,8 @@ const Register = () => {
 
       <div className="min-h-screen bg-black flex items-center justify-center px-4">
         <div className="absolute inset-0 gradient-purple opacity-30"></div>
-        
+        <ThemeToggle className="fixed right-4 top-4 z-20" />
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -71,6 +90,7 @@ const Register = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  autoComplete="name"
                   className="mt-2 bg-black/50 border-purple-500/30 text-white"
                   placeholder="Seu nome"
                 />
@@ -84,20 +104,21 @@ const Register = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                   className="mt-2 bg-black/50 border-purple-500/30 text-white"
                   placeholder="seu@email.com"
                 />
               </div>
 
-
               <div className="relative">
                 <Label htmlFor="password" className="text-white">Senha</Label>
                 <Input
                   id="password"
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="new-password"
                   className="mt-2 bg-black/50 border-purple-500/30 text-white pr-10"
                   placeholder="••••••••"
                 />
@@ -115,10 +136,11 @@ const Register = () => {
                 <Label htmlFor="confirmPassword" className="text-white">Confirme a Senha</Label>
                 <Input
                   id="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
+                  type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
+                  autoComplete="new-password"
                   className="mt-2 bg-black/50 border-purple-500/30 text-white pr-10"
                   placeholder="••••••••"
                 />
@@ -131,6 +153,12 @@ const Register = () => {
                   {showConfirmPassword ? 'Ocultar' : 'Mostrar'}
                 </button>
               </div>
+
+              {formError && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {formError}
+                </div>
+              )}
 
               <Button
                 type="submit"

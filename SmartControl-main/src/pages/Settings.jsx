@@ -11,10 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/ui/use-toast';
 import { Save } from 'lucide-react';
+import { sanitizeText, validateDisplayName } from '@/lib/security';
 
 const Settings = () => {
   const { user } = useAuth();
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark, setTheme } = useTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
@@ -26,8 +27,20 @@ const Settings = () => {
   }, [user]);
 
   const handleSave = async () => {
+    const safeName = sanitizeText(name, 80);
+    const nameError = validateDisplayName(safeName);
+
+    if (nameError) {
+      toast({
+        title: "Nome inválido",
+        description: nameError,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const { error } = await supabase.auth.updateUser({
-      data: { full_name: name }
+      data: { full_name: safeName }
     });
 
     if (error) {
@@ -41,6 +54,7 @@ const Settings = () => {
         title: "Configurações salvas!",
         description: "Suas preferências foram atualizadas.",
       });
+      setName(safeName);
     }
   };
 
@@ -109,10 +123,15 @@ const Settings = () => {
             
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white font-medium">Modo Escuro</p>
-                <p className="text-gray-400 text-sm">Ativar tema escuro</p>
+                <p className="text-white font-medium">Tema do sistema</p>
+                <p className="text-gray-400 text-sm">
+                  {isDark ? 'Modo escuro ativo' : 'Modo claro ativo'}
+                </p>
               </div>
-              <Switch checked={isDark} onCheckedChange={toggleTheme} />
+              <Switch
+                checked={isDark}
+                onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+              />
             </div>
           </motion.div>
 

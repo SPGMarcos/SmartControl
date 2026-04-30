@@ -3,31 +3,38 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 const ThemeContext = createContext({
   theme: 'dark',
   setTheme: () => null,
+  toggleTheme: () => null,
+  isDark: true,
+  isLight: false,
 });
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') || 'dark'
+      const savedTheme = localStorage.getItem('theme');
+      return savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'dark';
     }
-    return 'dark'
+    return 'dark';
   });
 
   useEffect(() => {
-    const root = window.document.documentElement
-    root.classList.remove('light', 'dark')
-    root.classList.add(theme)
-    localStorage.setItem('theme', theme)
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+    root.style.colorScheme = theme;
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
   const value = {
     theme,
     setTheme: (newTheme) => {
-      setTheme(newTheme)
+      setTheme(newTheme === 'light' ? 'light' : 'dark');
     },
     toggleTheme: () => {
-      setTheme(theme === 'dark' ? 'light' : 'dark')
-    }
+      setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
+    },
+    isDark: theme === 'dark',
+    isLight: theme === 'light',
   };
 
   return (

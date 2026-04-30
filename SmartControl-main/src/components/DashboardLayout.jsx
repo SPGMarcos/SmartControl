@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { Button } from '@/components/ui/button';
+import ThemeToggle from '@/components/ThemeToggle';
 import {
   LayoutDashboard,
   Zap,
@@ -13,6 +14,7 @@ import {
   X,
   Shield
 } from 'lucide-react';
+import { getUserDisplayName } from '@/lib/deviceProjects';
 
 const DashboardLayout = ({ children }) => {
   const { user, signOut } = useAuth();
@@ -37,7 +39,7 @@ const DashboardLayout = ({ children }) => {
   };
 
   const HEADER_HEIGHT = 64; // px
-  const SIDEBAR_WIDTH = 256; // px (w-64)
+  const displayName = getUserDisplayName(user);
 
   return (
     <div className="flex min-h-screen bg-black">
@@ -76,13 +78,13 @@ const DashboardLayout = ({ children }) => {
 
           <div className="absolute bottom-6 left-6 right-6">
             <div className="gradient-card p-4 rounded-lg border border-purple-500/30 mb-4">
-              <p className="text-white font-medium">{user?.user_metadata?.full_name}</p>
-              <p className="text-gray-400 text-sm">{user?.email}</p>
+              <p className="text-white font-medium">{displayName}</p>
+              <p className="text-gray-400 text-sm">Conta SmartControl</p>
             </div>
             <Button
               onClick={handleLogout}
               variant="outline"
-              className="w-full border-purple-500/30 text-gray-400 hover:text-white"
+              className="w-full border-purple-500/30 bg-black/30 text-gray-300 hover:bg-red-500/10 hover:text-white"
             >
               <LogOut className="w-4 h-4 mr-2" />
               Sair
@@ -92,26 +94,42 @@ const DashboardLayout = ({ children }) => {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col" style={{ marginLeft: SIDEBAR_WIDTH }}>
+      <div className="flex-1 flex flex-col lg:ml-64">
         {/* Header */}
         <header
-          className="fixed top-0 left-0 right-0 bg-black/90 backdrop-blur-lg border-b border-purple-500/30 z-30 flex items-center justify-between px-6"
-          style={{ height: HEADER_HEIGHT, marginLeft: SIDEBAR_WIDTH }}
+          className="fixed top-0 left-0 right-0 lg:left-64 bg-black/90 backdrop-blur-lg border-b border-purple-500/30 z-30 flex items-center justify-between px-4 sm:px-6"
+          style={{ height: HEADER_HEIGHT }}
         >
-          <div className="lg:hidden">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-white"
+              className="text-white lg:hidden"
             >
               {sidebarOpen ? <X /> : <Menu />}
             </Button>
+            <span className="text-white font-bold text-xl hidden lg:block">
+              SmartControl
+            </span>
           </div>
-          <span className="text-white font-bold text-xl hidden lg:block">
-            SmartControl
-          </span>
-          <div className="text-gray-300">{user?.user_metadata?.full_name}</div>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden text-right sm:block">
+              <p className="text-sm font-semibold text-white">{displayName}</p>
+              <p className="text-xs text-gray-500">Dashboard ativo</p>
+            </div>
+            <ThemeToggle />
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              size="sm"
+              className="border-purple-500/30 bg-black/30 text-gray-300 hover:bg-red-500/10 hover:text-white"
+            >
+              <LogOut className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Sair</span>
+            </Button>
+          </div>
         </header>
 
         {/* Page content */}

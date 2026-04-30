@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
+import MarketplaceModal from '@/components/MarketplaceModal';
+import ThemeToggle from '@/components/ThemeToggle';
 import logo from '../assets/logo.png';
 
 const Navbar = () => {
@@ -15,17 +17,15 @@ const Navbar = () => {
       className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-lg border-b border-purple-500/30"
     >
 
-      <div className="container mx-auto px-4 py-4">
-        <div className="container mx-auto px-4 flex items-center justify-between h-16">
+      <div className="container mx-auto flex h-16 items-center justify-between px-3 sm:px-4">
           <Link to="/" className="flex items-center gap-3">
             <img src={logo} alt="SmartControl" className="h-8 w-auto object-contain" />
             <span className="text-xl font-bold text-foreground hidden sm:inline">SmartControl</span>
           </Link>
 
-          <div className="flex items-center gap-6">
-            <Link to="/shop" className="text-gray-300 hover:text-white transition-colors">
-              Loja
-            </Link>
+          <div className="flex items-center gap-3 sm:gap-6">
+            <MarketplaceModal />
+            <ThemeToggle />
             {user ? (
               <Link to="/dashboard">
                 <Button className="bg-purple-600 hover:bg-purple-700">
@@ -45,7 +45,6 @@ const Navbar = () => {
               </>
             )}
           </div>
-        </div>
       </div>
     </motion.nav>
   );

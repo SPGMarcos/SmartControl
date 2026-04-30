@@ -4,24 +4,24 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
+    --background: 270 33% 96%;
+    --foreground: 268 29% 10%;
+    --card: 270 38% 98%;
+    --card-foreground: 268 29% 10%;
+    --popover: 270 38% 98%;
+    --popover-foreground: 268 29% 10%;
     --primary: 271 76% 25%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --secondary: 270 30% 92%;
+    --secondary-foreground: 268 29% 10%;
+    --muted: 270 26% 91%;
+    --muted-foreground: 268 10% 40%;
+    --accent: 271 46% 90%;
+    --accent-foreground: 268 29% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
+    --border: 270 24% 84%;
+    --input: 270 24% 84%;
     --ring: 271 76% 25%;
     --radius: 0.5rem;
   }
@@ -63,6 +63,16 @@
   color-scheme: dark;
 }
 
+.light {
+  color-scheme: light;
+}
+
+.light body {
+  background:
+    radial-gradient(circle at top left, rgba(75, 0, 130, 0.14), transparent 34rem),
+    linear-gradient(180deg, #f8f5fb 0%, #eee8f5 100%);
+}
+
 @layer utilities {
   .gradient-purple {
     background: linear-gradient(135deg, #4B0082 0%, #1a0033 100%);
@@ -71,5 +81,141 @@
   .gradient-card {
     background: linear-gradient(135deg, rgba(75, 0, 130, 0.1) 0%, rgba(0, 0, 0, 0.3) 100%);
     backdrop-filter: blur(10px);
+  }
+}
+
+@layer components {
+  .light .gradient-purple {
+    background: linear-gradient(135deg, rgba(75, 0, 130, 0.18) 0%, rgba(216, 199, 239, 0.92) 100%);
+  }
+
+  .light .gradient-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.78) 0%, rgba(239, 232, 247, 0.68) 100%);
+    box-shadow: 0 18px 50px rgba(31, 20, 45, 0.08);
+  }
+
+  .light .bg-black {
+    background-color: #f8f5fb !important;
+  }
+
+  .light .bg-gray-900 {
+    background-color: #eee8f5 !important;
+  }
+
+  .light .bg-gray-800 {
+    background-color: #e6ddf0 !important;
+  }
+
+  .light .bg-gray-700 {
+    background-color: #cfc3dc !important;
+  }
+
+  .light .bg-black\/90 {
+    background-color: rgba(248, 245, 251, 0.9) !important;
+  }
+
+  .light .bg-black\/80 {
+    background-color: rgba(248, 245, 251, 0.82) !important;
+  }
+
+  .light .bg-black\/70 {
+    background-color: rgba(248, 245, 251, 0.76) !important;
+  }
+
+  .light .bg-black\/60,
+  .light .bg-black\/55,
+  .light .bg-black\/50,
+  .light .bg-black\/40,
+  .light .bg-black\/30,
+  .light .bg-black\/25 {
+    background-color: rgba(255, 255, 255, 0.62) !important;
+  }
+
+  .light .from-black {
+    --tw-gradient-from: #f8f5fb var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgba(248, 245, 251, 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+
+  .light .via-black {
+    --tw-gradient-to: rgba(248, 245, 251, 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), #f8f5fb var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+  }
+
+  .light .to-black {
+    --tw-gradient-to: #f8f5fb var(--tw-gradient-to-position) !important;
+  }
+
+  .light .from-gray-900 {
+    --tw-gradient-from: #eee8f5 var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgba(238, 232, 245, 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+
+  .light .to-gray-900 {
+    --tw-gradient-to: #eee8f5 var(--tw-gradient-to-position) !important;
+  }
+
+  .light .text-white {
+    color: #17111f !important;
+  }
+
+  .light .text-gray-200,
+  .light .text-gray-300 {
+    color: #33283f !important;
+  }
+
+  .light .text-gray-400 {
+    color: #62566e !important;
+  }
+
+  .light .text-gray-500 {
+    color: #7b7088 !important;
+  }
+
+  .light .bg-purple-600,
+  .light .hover\:bg-purple-700:hover {
+    color: #ffffff !important;
+  }
+
+  .light .bg-purple-600.text-white,
+  .light .bg-purple-600 .text-white,
+  .light .bg-purple-700.text-white,
+  .light .bg-purple-700 .text-white {
+    color: #ffffff !important;
+  }
+
+  .light input,
+  .light select,
+  .light textarea {
+    background-color: rgba(255, 255, 255, 0.74) !important;
+    color: #17111f !important;
+    border-color: rgba(75, 0, 130, 0.28) !important;
+  }
+
+  .light input::placeholder,
+  .light textarea::placeholder {
+    color: #81758f !important;
+  }
+
+  .light input:disabled {
+    background-color: rgba(238, 232, 245, 0.72) !important;
+    color: #62566e !important;
+  }
+
+  .light .theme-toggle {
+    background-color: rgba(255, 255, 255, 0.68) !important;
+    border-color: rgba(75, 0, 130, 0.28) !important;
+    color: #33283f !important;
+    box-shadow: 0 10px 30px rgba(31, 20, 45, 0.08);
+  }
+
+  .light .theme-toggle:hover {
+    background-color: rgba(75, 0, 130, 0.12) !important;
+    color: #17111f !important;
+  }
+
+  .light .theme-toggle svg {
+    color: #4B0082 !important;
   }
 }

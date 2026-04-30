@@ -1,6 +1,7 @@
 import React from 'react';
 import { Instagram, MessageCircle } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import MarketplaceModal from '@/components/MarketplaceModal';
 
 const Footer = () => {
   const location = useLocation();
@@ -32,9 +33,7 @@ const Footer = () => {
                 </a>
               </li>
               <li>
-                <a href="/shop" className="text-gray-400 hover:text-purple-400 transition-colors">
-                  Loja
-                </a>
+                <MarketplaceModal triggerClassName="text-gray-400 hover:text-purple-400 transition-colors" />
               </li>
               <li>
                 <a href="/login" className="text-gray-400 hover:text-purple-400 transition-colors">
