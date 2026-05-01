@@ -35,7 +35,7 @@ const Home = () => {
     {
       icon: Zap,
       title: 'Automação Inteligente',
-      description: 'Controle total de dispositivos IoT em tempo real',
+      description: 'Controle total de dispositivos IoT em tempo real via MQTT em nuvem',
     },
     {
       icon: Droplets,
@@ -84,7 +84,7 @@ const Home = () => {
     {
       icon: Cpu,
       title: 'Base comercial',
-      description: 'Configuração por ambiente, tratamento de erros e estrutura preparada para crescer com segurança.',
+      description: 'Configuração por ambiente, tratamento de erros e estrutura preparada para crescer com backend Node.js e broker MQTT em nuvem.',
     },
   ];
 

@@ -115,7 +115,7 @@ const Devices = () => {
                     {project.devices.map((device, index) => (
                       <DeviceCard
                         key={device.id}
-                        device={device}
+                        device={{ ...device, detailUrl: `/devices/${device.id}` }}
                         onToggle={() => handleDeviceToggle(device.id, device.status)}
                         onDelete={() => handleDeviceDelete(device.id)}
                         index={index}

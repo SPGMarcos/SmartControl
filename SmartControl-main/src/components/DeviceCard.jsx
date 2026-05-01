@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Droplets, Gauge, Lightbulb, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -50,7 +51,13 @@ const DeviceCard = ({ device, onToggle, onDelete, index = 0, showDelete }) => {
             <Icon className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">{device.name}</h3>
+              {device.detailUrl ? (
+                <Link to={device.detailUrl} className="text-lg font-bold text-white hover:text-purple-300 transition">
+                  {device.name}
+                </Link>
+              ) : (
+                <h3 className="text-lg font-bold text-white">{device.name}</h3>
+              )}
             <p className="text-gray-400 text-sm">{getDeviceProjectName(device)}</p>
           </div>
         </div>

@@ -12,6 +12,7 @@ const Register = React.lazy(() => import('@/pages/Register'))
 const Dashboard = React.lazy(() => import('@/pages/Dashboard'))
 const Devices = React.lazy(() => import('@/pages/Devices'))
 const AddDevice = React.lazy(() => import('@/pages/AddDevices'))
+const DeviceDetail = React.lazy(() => import('@/pages/DeviceDetail'))
 const Shop = React.lazy(() => import('@/pages/Shop'))
 const Settings = React.lazy(() => import('@/pages/Settings'))
 const Admin = React.lazy(() => import('@/pages/Admin'))
@@ -49,6 +50,7 @@ const routes = [
   { path: '/register', element: <Register />, isPublic: true, noLayout: true },
   { path: '/dashboard', element: <Dashboard />, isPrivate: true },
   { path: '/devices', element: <Devices />, isPrivate: true },
+  { path: '/devices/:id', element: <DeviceDetail />, isPrivate: true },
   { path: '/add-device', element: <AddDevice />, isPrivate: true },
   { path: '/shop', element: <Shop />, isPublic: true },
   { path: '/settings', element: <Settings />, isPrivate: true },

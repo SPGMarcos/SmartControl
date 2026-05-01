@@ -113,7 +113,7 @@ const ProjectDashboard = ({ project, onToggle }) => (
           {project.devices.map((device, index) => (
             <DeviceCard
               key={device.id}
-              device={device}
+              device={{ ...device, detailUrl: `/devices/${device.id}` }}
               onToggle={() => onToggle(device.id, device.status)}
               index={index}
             />

@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { Cpu, Plus, ShieldCheck } from 'lucide-react';
 import { deviceModelOptions, projectTemplates, protocolOptions } from '@/lib/deviceProjects';
+import { buildDeviceExternalId, generateDeviceToken } from '@/lib/mqttTopics';
 import { sanitizeText } from '@/lib/security';
 
 const AddDevice = () => {
@@ -22,7 +23,13 @@ const AddDevice = () => {
     projectName: projectTemplates[0].name,
     deviceModel: 'esp32',
     protocol: 'mqtt',
+    mqttBroker: '',
     mqttTopic: '',
+    deviceId: '',
+    macAddress: '',
+    firmwareVersion: '',
+    hardwareVersion: '',
+    deviceToken: generateDeviceToken(),
   });
 
   const deviceTypes = [
@@ -54,11 +61,24 @@ const AddDevice = () => {
       return;
     }
 
+    const safeDeviceId = sanitizeText(formData.deviceId, 80) || buildDeviceExternalId({ name: safeName, uniqueSuffix: Date.now().toString().slice(-4) });
+    const safeMacAddress = sanitizeText(formData.macAddress, 40);
+    const safeFirmware = sanitizeText(formData.firmwareVersion, 40);
+    const safeHardware = sanitizeText(formData.hardwareVersion, 40);
+    const safeMqttBroker = sanitizeText(formData.mqttBroker, 120);
+    const safeDeviceToken = sanitizeText(formData.deviceToken, 120);
+
     const basePayload = {
       user_id: user.id,
       name: safeName,
       type: formData.type,
+      device_id: safeDeviceId,
+      mac_address: safeMacAddress,
+      firmware_version: safeFirmware,
+      hardware_version: safeHardware,
+      mqtt_broker: safeMqttBroker,
       mqtt_topic: safeMqttTopic,
+      device_token: safeDeviceToken,
     };
 
     const professionalPayload = {
@@ -192,6 +212,92 @@ const AddDevice = () => {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="deviceId" className="text-white">ID do Dispositivo</Label>
+                  <Input
+                    id="deviceId"
+                    name="deviceId"
+                    value={formData.deviceId}
+                    onChange={handleChange}
+                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                    placeholder="Ex: bomba-poço-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="macAddress" className="text-white">MAC Address</Label>
+                  <Input
+                    id="macAddress"
+                    name="macAddress"
+                    value={formData.macAddress}
+                    onChange={handleChange}
+                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                    placeholder="Ex: AA:BB:CC:DD:EE:FF"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="firmwareVersion" className="text-white">Firmware</Label>
+                  <Input
+                    id="firmwareVersion"
+                    name="firmwareVersion"
+                    value={formData.firmwareVersion}
+                    onChange={handleChange}
+                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                    placeholder="Ex: v1.0.0"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="hardwareVersion" className="text-white">Versão do Hardware</Label>
+                  <Input
+                    id="hardwareVersion"
+                    name="hardwareVersion"
+                    value={formData.hardwareVersion}
+                    onChange={handleChange}
+                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                    placeholder="Ex: ESP32 DevKit v4"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="mqttBroker" className="text-white">Broker MQTT</Label>
+                  <Input
+                    id="mqttBroker"
+                    name="mqttBroker"
+                    value={formData.mqttBroker}
+                    onChange={handleChange}
+                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                    placeholder="wss://broker.emqx.io:8084/mqtt"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="mqttTopic" className="text-white">Tópico MQTT</Label>
+                  <Input
+                    id="mqttTopic"
+                    name="mqttTopic"
+                    value={formData.mqttTopic}
+                    onChange={handleChange}
+                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                    placeholder="smartcontrol/cliente/projeto/dispositivo"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-purple-500/20 bg-black/30 p-4">
+                <Label htmlFor="deviceToken" className="text-white">Token do Dispositivo</Label>
+                <Input
+                  id="deviceToken"
+                  name="deviceToken"
+                  value={formData.deviceToken}
+                  readOnly
+                  className="mt-2 bg-black/40 border-purple-500/30 text-white"
+                />
               </div>
 
               <div className="border-t border-purple-500/30 pt-6">
