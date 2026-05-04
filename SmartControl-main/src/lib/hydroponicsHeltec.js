@@ -148,11 +148,20 @@ export const applyHydroponicsCommandState = (device = {}, commandPayload = {}) =
   if (commandPayload?.useConfigTopic) {
     if (payload.tOn !== undefined) patch.tOn = toNumber(payload.tOn, current.tOn);
     if (payload.tOff !== undefined) patch.tOff = toNumber(payload.tOff, current.tOff);
+    if (current.t24 && (payload.tOn !== undefined || payload.tOff !== undefined)) {
+      patch.rem = (current.v1 ? patch.tOn ?? current.tOn : patch.tOff ?? current.tOff) * 60;
+    }
   }
 
   if (command === 'set_auto') {
     patch.t24 = toBoolean(payload.enabled, current.t24);
-    if (!patch.t24) patch.rem = 0;
+    if (patch.t24) {
+      patch.v1 = true;
+      patch.v2 = true;
+      patch.rem = current.tOn * 60;
+    } else {
+      patch.rem = 0;
+    }
   }
 
   if (command === 'set_relay') {
@@ -163,6 +172,7 @@ export const applyHydroponicsCommandState = (device = {}, commandPayload = {}) =
   if (command === 'set_timers') {
     patch.tOn = toNumber(payload.tOn, current.tOn);
     patch.tOff = toNumber(payload.tOff, current.tOff);
+    patch.rem = current.t24 ? (current.v1 ? patch.tOn : patch.tOff) * 60 : 0;
   }
 
   if (Object.keys(patch).length === 0) return device;
@@ -171,6 +181,7 @@ export const applyHydroponicsCommandState = (device = {}, commandPayload = {}) =
   const lastState = {
     ...parseJsonField(device.last_state),
     online: true,
+    last_seen: now,
     ...patch,
   };
 

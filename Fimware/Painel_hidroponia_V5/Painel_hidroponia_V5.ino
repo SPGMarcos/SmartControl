@@ -118,8 +118,13 @@ void updateDisplay() {
 
 // --- Integracao MQTT SmartControl ---
 long calcularRestante() {
-    long restante = ((v1 ? tOnMin : tOffMin) * 60) - ((millis() - ultimoTempoBomba) / 1000);
-    return restante < 0 ? 0 : restante;
+    if (!trava24h) return 0;
+
+    unsigned long intervaloSegundos = (unsigned long)(v1 ? tOnMin : tOffMin) * 60UL;
+    unsigned long decorrido = (millis() - ultimoTempoBomba) / 1000UL;
+    if (decorrido >= intervaloSegundos) return 0;
+
+    return (long)(intervaloSegundos - decorrido);
 }
 
 String smartControlBaseTopic() {
@@ -223,12 +228,14 @@ void publishAck(const String& requestId, const String& command, bool accepted, c
 }
 
 void applyAutomaticMode(bool enabled) {
-    if (enabled && !trava24h) {
+    if (enabled) {
         digitalWrite(RELAY_OXIGENADOR, LOW);
         v2 = true;
         delay(1000);
         digitalWrite(RELAY_BOMBA, LOW);
         v1 = true;
+        ultimoTempoBomba = millis();
+    } else {
         ultimoTempoBomba = millis();
     }
     trava24h = enabled;
@@ -539,13 +546,7 @@ void setup() {
     server.on("/set", [](){
         if (server.hasArg("t24")) { 
             bool novoT24 = (server.arg("t24") == "true"); 
-            if (novoT24 && !trava24h) {
-                digitalWrite(RELAY_OXIGENADOR, LOW); v2 = true;
-                delay(1000);
-                digitalWrite(RELAY_BOMBA, LOW); v1 = true;
-                ultimoTempoBomba = millis();
-            }
-            trava24h = novoT24; 
+            applyAutomaticMode(novoT24);
         }
         if (server.hasArg("tOn")) { tOnMin = server.arg("tOn").toInt(); }
         if (server.hasArg("tOff")) { tOffMin = server.arg("tOff").toInt(); }

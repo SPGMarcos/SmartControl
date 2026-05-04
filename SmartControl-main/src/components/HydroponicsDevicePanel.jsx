@@ -54,6 +54,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
     tOff: state.tOff,
   });
   const [busyCommand, setBusyCommand] = useState('');
+  const [nowTick, setNowTick] = useState(Date.now());
 
   useEffect(() => {
     setTimerValues({
@@ -62,7 +63,23 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
     });
   }, [state.tOn, state.tOff]);
 
+  useEffect(() => {
+    setNowTick(Date.now());
+
+    if (!state.t24) return undefined;
+
+    const timer = window.setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [state.t24, state.rem, state.lastSeen]);
+
   const online = isDeviceOnline(device) || state.online;
+  const stateAgeSeconds = state.lastSeen
+    ? Math.max(0, Math.floor((nowTick - new Date(state.lastSeen).getTime()) / 1000))
+    : 0;
+  const visibleRemaining = state.t24 ? Math.max(0, state.rem - stateAgeSeconds) : 0;
   const timerLabel = state.t24 ? (state.v1 ? 'Bomba ativa' : 'Bomba em repouso') : 'Modo manual';
   const timerTone = state.v1 ? 'text-green-300' : 'text-amber-300';
   const localDashboardUrl = getHydroponicsLocalUrl(device);
@@ -179,7 +196,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
 
           <div className="mb-6 rounded-3xl border border-blue-500/30 bg-blue-500/10 p-5 text-center">
             <p className={`text-xs font-bold uppercase tracking-[0.25em] ${timerTone}`}>{timerLabel}</p>
-            <p className="mt-3 font-mono text-5xl font-bold text-white">{formatHydroponicsTimer(state.rem)}</p>
+            <p className="mt-3 font-mono text-5xl font-bold text-white">{formatHydroponicsTimer(visibleRemaining)}</p>
           </div>
 
           <div className="space-y-4 border-t border-purple-500/20 pt-5">

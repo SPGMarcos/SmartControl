@@ -175,9 +175,9 @@ const Dashboard = () => {
   const [selectedProjectId, setSelectedProjectId] = useState('');
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchData = async ({ showLoader = false } = {}) => {
       if (!user) return;
-      setLoading(true);
+      if (showLoader) setLoading(true);
 
       const { data: devicesData, error: devicesError } = await supabase
         .from('devices')
@@ -215,7 +215,11 @@ const Dashboard = () => {
       setLoading(false);
     };
 
-    fetchData();
+    fetchData({ showLoader: true });
+
+    const polling = window.setInterval(() => {
+      fetchData();
+    }, 3000);
 
     const deviceSub = supabase.channel('public:devices')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'devices', filter: `user_id=eq.${user?.id}` }, () => {
@@ -230,6 +234,7 @@ const Dashboard = () => {
       .subscribe();
 
     return () => {
+      window.clearInterval(polling);
       supabase.removeChannel(deviceSub);
       supabase.removeChannel(sensorSub);
     };

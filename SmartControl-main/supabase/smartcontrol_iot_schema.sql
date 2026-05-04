@@ -156,3 +156,31 @@ create policy "Users can read own logs"
         and d.user_id = auth.uid()
     )
   );
+
+alter table public.devices replica identity full;
+alter table public.sensors replica identity full;
+alter table public.logs replica identity full;
+
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table public.devices;
+  exception
+    when duplicate_object then null;
+    when undefined_object then null;
+  end;
+
+  begin
+    alter publication supabase_realtime add table public.sensors;
+  exception
+    when duplicate_object then null;
+    when undefined_object then null;
+  end;
+
+  begin
+    alter publication supabase_realtime add table public.logs;
+  exception
+    when duplicate_object then null;
+    when undefined_object then null;
+  end;
+end $$;

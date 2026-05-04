@@ -25,9 +25,9 @@ const DeviceDetail = () => {
   const [command, setCommand] = useState('request_status');
   const [sending, setSending] = useState(false);
 
-  const fetchDevice = async () => {
+  const fetchDevice = async ({ showLoader = false } = {}) => {
     if (!user || !id) return;
-    setLoading(true);
+    if (showLoader) setLoading(true);
     const { data, error } = await supabase
       .from('devices')
       .select('*')
@@ -35,6 +35,7 @@ const DeviceDetail = () => {
       .single();
 
     if (error || !data) {
+      if (!showLoader) return;
       toast({
         variant: 'destructive',
         title: 'Dispositivo não encontrado',
@@ -49,7 +50,13 @@ const DeviceDetail = () => {
   };
 
   useEffect(() => {
-    fetchDevice();
+    fetchDevice({ showLoader: true });
+
+    const polling = window.setInterval(() => {
+      fetchDevice();
+    }, 3000);
+
+    return () => window.clearInterval(polling);
   }, [user, id]);
 
   const sendDeviceCommand = async (commandPayload) => {
