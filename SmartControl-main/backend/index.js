@@ -103,8 +103,24 @@ const mqttClient = mqtt.connect(MQTT_URL, {
   rejectUnauthorized: MQTT_REJECT_UNAUTHORIZED !== 'false',
 });
 
+const bufferLikeToString = (value) => {
+  if (Buffer.isBuffer(value)) return value.toString('utf8');
+
+  if (value instanceof Uint8Array) {
+    return Buffer.from(value).toString('utf8');
+  }
+
+  if (value?.type === 'Buffer' && Array.isArray(value.data)) {
+    return Buffer.from(value.data).toString('utf8');
+  }
+
+  return null;
+};
+
 const safeJsonParse = (value) => {
   if (!value) return {};
+  const bufferText = bufferLikeToString(value);
+  if (bufferText !== null) return safeJsonParse(bufferText);
   if (typeof value === 'object') return value;
 
   try {
@@ -585,7 +601,7 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   return res.json({
     status: 'ok',
-    version: '1.2.0',
+    version: '1.2.1',
     mqtt_connected: mqttClient.connected,
     subscribed_topics: statusTopics,
     auth_required: requireAuth,

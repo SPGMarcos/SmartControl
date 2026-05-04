@@ -15,8 +15,22 @@ export const HYDROPONICS_CAPABILITIES = {
   telemetry: ['remaining_timer', 'relay_state', 'mode', 'ip', 'mac', 'firmware_version', 'heartbeat'],
 };
 
+const bufferLikeToString = (value) => {
+  if (value?.type === 'Buffer' && Array.isArray(value.data)) {
+    return String.fromCharCode(...value.data);
+  }
+
+  if (value instanceof Uint8Array) {
+    return new TextDecoder().decode(value);
+  }
+
+  return null;
+};
+
 const parseJsonField = (value) => {
   if (!value) return {};
+  const bufferText = bufferLikeToString(value);
+  if (bufferText !== null) return parseJsonField(bufferText);
   if (typeof value === 'object') return value;
 
   try {
@@ -124,6 +138,56 @@ export const buildHydroponicsCommand = (command, payload = {}) => ({
   source: 'smartcontrol-web',
   created_at: new Date().toISOString(),
 });
+
+export const applyHydroponicsCommandState = (device = {}, commandPayload = {}) => {
+  const command = commandPayload?.command;
+  const payload = commandPayload?.payload || {};
+  const current = normalizeHydroponicsState(device);
+  const patch = {};
+
+  if (commandPayload?.useConfigTopic) {
+    if (payload.tOn !== undefined) patch.tOn = toNumber(payload.tOn, current.tOn);
+    if (payload.tOff !== undefined) patch.tOff = toNumber(payload.tOff, current.tOff);
+  }
+
+  if (command === 'set_auto') {
+    patch.t24 = toBoolean(payload.enabled, current.t24);
+    if (!patch.t24) patch.rem = 0;
+  }
+
+  if (command === 'set_relay') {
+    if (payload.relay === 'pump') patch.v1 = toBoolean(payload.value, current.v1);
+    if (payload.relay === 'oxygenator') patch.v2 = toBoolean(payload.value, current.v2);
+  }
+
+  if (command === 'set_timers') {
+    patch.tOn = toNumber(payload.tOn, current.tOn);
+    patch.tOff = toNumber(payload.tOff, current.tOff);
+  }
+
+  if (Object.keys(patch).length === 0) return device;
+
+  const now = new Date().toISOString();
+  const lastState = {
+    ...parseJsonField(device.last_state),
+    online: true,
+    ...patch,
+  };
+
+  return {
+    ...device,
+    online: true,
+    connection_status: 'online',
+    status: typeof patch.v1 === 'boolean' ? patch.v1 : device.status,
+    last_heartbeat: now,
+    updated_at: now,
+    last_state: lastState,
+    telemetry: {
+      ...parseJsonField(device.telemetry),
+      ...lastState,
+    },
+  };
+};
 
 export const getHydroponicsLocalUrl = (device = {}, path = '/') => {
   const state = normalizeHydroponicsState(device);

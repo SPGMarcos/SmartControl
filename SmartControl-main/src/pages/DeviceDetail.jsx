@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { getDeviceModelLabel, getDeviceProtocolLabel, getDeviceProjectName, isDeviceOnline } from '@/lib/deviceProjects';
-import { isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
+import { applyHydroponicsCommandState, isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
 import { backendUrl } from '@/lib/backend';
 
 const DeviceDetail = () => {
@@ -100,6 +100,10 @@ const DeviceDetail = () => {
       setSending(false);
       return;
     }
+
+    setDevice((currentDevice) =>
+      currentDevice ? applyHydroponicsCommandState(currentDevice, commandPayload) : currentDevice
+    );
 
     toast({
       title: commandPayload?.useConfigTopic ? 'ConfiguraÃ§Ã£o enviada' : 'Comando enviado',

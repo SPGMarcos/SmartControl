@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { getUserDisplayName, groupDevicesByProject, isDeviceOnline } from '@/lib/deviceProjects';
-import { buildHydroponicsMqttTopics, isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
+import { applyHydroponicsCommandState, buildHydroponicsMqttTopics, isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
 import { backendUrl } from '@/lib/backend';
 import { toast } from '@/components/ui/use-toast';
 
@@ -299,6 +299,14 @@ const Dashboard = () => {
       });
       return;
     }
+
+    setDevices((currentDevices) =>
+      currentDevices.map((currentDevice) =>
+        currentDevice.id === device.id
+          ? applyHydroponicsCommandState(currentDevice, commandPayload)
+          : currentDevice
+      )
+    );
 
     toast({
       title: commandPayload?.useConfigTopic ? 'ConfiguraÃ§Ã£o enviada' : 'Comando enviado',
