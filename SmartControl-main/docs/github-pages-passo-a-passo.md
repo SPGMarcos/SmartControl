@@ -26,6 +26,41 @@ https://spgmarcos.github.io/SmartControl/login?reset_password=true
 
 ## 2. Backend no Render
 
+Opcao recomendada: usar o arquivo `render.yaml` que ja esta na raiz do repositorio.
+
+No Render:
+
+```text
+New > Blueprint
+Connect GitHub > SPGMarcos/SmartControl
+Blueprint file: render.yaml
+```
+
+O Render vai pedir os valores marcados como secretos:
+
+```text
+SUPABASE_SERVICE_ROLE_KEY
+MQTT_PASSWORD
+```
+
+Cole a Secret key do Supabase e a senha do usuario MQTT `smartcontrol-backend`.
+
+Depois de criado, o backend deve ficar em uma URL parecida com:
+
+```text
+https://smartcontrol-backend.onrender.com
+```
+
+Teste:
+
+```text
+https://smartcontrol-backend.onrender.com/health
+```
+
+Precisa retornar `mqtt_connected: true`.
+
+Opcao manual:
+
 Crie um Web Service:
 
 ```text

@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: smartcontrol-backend
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: SmartControl-main/backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        value: https://ldjdqbucmnfxuifieqhp.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: MQTT_URL
+        value: mqtts://ff967c06.ala.us-east-1.emqxsl.com:8883
+      - key: MQTT_USERNAME
+        value: smartcontrol-backend
+      - key: MQTT_PASSWORD
+        sync: false
+      - key: MQTT_CLIENT_ID
+        value: smartcontrol-backend
+      - key: MQTT_STATUS_TOPICS
+        value: smartcontrol/+/+/+/status,smartcontrol/+/+/+/telemetry,smartcontrol/+/+/+/heartbeat,smartcontrol/+/+/+/ack,smartcontrol/+/+/+/availability,smartcontrol/+/+/+/config
+      - key: MQTT_REJECT_UNAUTHORIZED
+        value: "true"
+      - key: MQTT_REQUIRE_DEVICE_TOKEN
+        value: "false"
+      - key: CORS_ORIGIN
+        value: https://spgmarcos.github.io,http://localhost:5173,http://127.0.0.1:4173
+      - key: REQUIRE_AUTH
+        value: "true"
+      - key: PORT
+        value: "4000"
