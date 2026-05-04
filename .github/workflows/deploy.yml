@@ -43,7 +43,7 @@ jobs:
           VITE_PUBLIC_APP_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL || secrets.VITE_BACKEND_URL }}
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL || secrets.VITE_BACKEND_URL || 'https://smartcontrol-backend-2zvt.onrender.com' }}
           VITE_PASSWORD_RESET_REDIRECT_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/login?reset_password=true
         run: npm run build
 

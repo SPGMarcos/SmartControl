@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { getUserDisplayName, groupDevicesByProject, isDeviceOnline } from '@/lib/deviceProjects';
 import { buildHydroponicsMqttTopics, isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
+import { backendUrl } from '@/lib/backend';
 import { toast } from '@/components/ui/use-toast';
 
 const StatCard = ({ icon: Icon, label, value, accent = 'text-purple-400', delay = 0 }) => (
@@ -255,8 +256,6 @@ const Dashboard = () => {
   };
 
   const handleDeviceCommand = async (device, commandPayload) => {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
-
     if (!backendUrl) {
       toast({
         variant: 'destructive',
@@ -270,7 +269,7 @@ const Dashboard = () => {
       ? `/api/devices/${device.id}/config`
       : '/api/command';
 
-    const response = await fetch(`${backendUrl.replace(/\/+$/, '')}${endpoint}`, {
+    const response = await fetch(`${backendUrl}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

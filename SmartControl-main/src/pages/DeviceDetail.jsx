@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { getDeviceModelLabel, getDeviceProtocolLabel, getDeviceProjectName, isDeviceOnline } from '@/lib/deviceProjects';
 import { isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
+import { backendUrl } from '@/lib/backend';
 
 const DeviceDetail = () => {
   const { id } = useParams();
@@ -55,7 +56,6 @@ const DeviceDetail = () => {
     if (!device) return;
     setSending(true);
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
     if (!backendUrl) {
       toast({
         variant: 'destructive',
@@ -70,7 +70,7 @@ const DeviceDetail = () => {
       ? `/api/devices/${device.id}/config`
       : '/api/command';
 
-    const response = await fetch(`${backendUrl.replace(/\/+$/, '')}${endpoint}`, {
+    const response = await fetch(`${backendUrl}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
