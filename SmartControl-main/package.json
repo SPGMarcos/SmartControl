@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/create-gh-pages-fallback.mjs",
+    "build:vite": "vite build",
     "preview": "vite preview",
-    "deploy": "gh-pages -d dist"
+    "serve:dist": "node scripts/serve-dist.mjs",
+    "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

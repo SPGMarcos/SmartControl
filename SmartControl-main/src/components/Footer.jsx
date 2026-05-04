@@ -1,6 +1,6 @@
 import React from 'react';
 import { Instagram, MessageCircle } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import MarketplaceModal from '@/components/MarketplaceModal';
 
 const Footer = () => {
@@ -28,17 +28,17 @@ const Footer = () => {
             <h4 className="font-semibold text-white mb-4">Links Rápidos</h4>
             <ul className="space-y-2">
               <li>
-                <a href="/" className="text-gray-400 hover:text-purple-400 transition-colors">
+                <Link to="/" className="text-gray-400 hover:text-purple-400 transition-colors">
                   Home
-                </a>
+                </Link>
               </li>
               <li>
                 <MarketplaceModal triggerClassName="text-gray-400 hover:text-purple-400 transition-colors" />
               </li>
               <li>
-                <a href="/login" className="text-gray-400 hover:text-purple-400 transition-colors">
+                <Link to="/login" className="text-gray-400 hover:text-purple-400 transition-colors">
                   Login
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

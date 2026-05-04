@@ -5,11 +5,14 @@ import { Link } from 'react-router-dom';
 import { Activity, ArrowRight, Gauge, Layers, Plus, Power, Wifi, Zap } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import DeviceCard from '@/components/DeviceCard';
+import HydroponicsDevicePanel from '@/components/HydroponicsDevicePanel';
 import SensorCard from '@/components/SensorCard';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { getUserDisplayName, groupDevicesByProject, isDeviceOnline } from '@/lib/deviceProjects';
+import { buildHydroponicsMqttTopics, isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
+import { toast } from '@/components/ui/use-toast';
 
 const StatCard = ({ icon: Icon, label, value, accent = 'text-purple-400', delay = 0 }) => (
   <motion.div
@@ -79,7 +82,7 @@ const ProjectCard = ({ project, selected, onOpen, index }) => (
   </motion.div>
 );
 
-const ProjectDashboard = ({ project, onToggle }) => (
+const ProjectDashboard = ({ project, onToggle, onDeviceCommand, userId }) => (
   <motion.section
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -106,11 +109,27 @@ const ProjectDashboard = ({ project, onToggle }) => (
       <StatCard icon={Gauge} label="Sensores" value={project.totalSensors} accent="text-blue-300" delay={0.15} />
     </div>
 
+    {project.devices.some(isHydroponicsDevice) && (
+      <div className="mb-8 space-y-5">
+        <h3 className="text-xl font-bold text-white">Módulos oficiais SmartControl</h3>
+        {project.devices.filter(isHydroponicsDevice).map((device) => (
+          <HydroponicsDevicePanel
+            key={device.id}
+            device={device}
+            compact
+            topics={buildHydroponicsMqttTopics({ userId, projectName: project.name, device })}
+            onCommand={(commandPayload) => onDeviceCommand(device, commandPayload)}
+            onConfig={(configPayload) => onDeviceCommand(device, { command: 'remote_config', payload: configPayload, useConfigTopic: true })}
+          />
+        ))}
+      </div>
+    )}
+
     <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
       <div>
         <h3 className="mb-4 text-xl font-bold text-white">Acionamentos rápidos</h3>
         <div className="grid gap-4 md:grid-cols-2">
-          {project.devices.map((device, index) => (
+          {project.devices.filter((device) => !isHydroponicsDevice(device)).map((device, index) => (
             <DeviceCard
               key={device.id}
               device={{ ...device, detailUrl: `/devices/${device.id}` }}
@@ -118,6 +137,11 @@ const ProjectDashboard = ({ project, onToggle }) => (
               index={index}
             />
           ))}
+          {project.devices.every(isHydroponicsDevice) && (
+            <div className="gradient-card rounded-xl border border-purple-500/30 p-6 text-gray-300">
+              Os acionamentos deste projeto estão concentrados no módulo de hidroponia acima.
+            </div>
+          )}
         </div>
       </div>
 
@@ -143,7 +167,7 @@ const ProjectDashboard = ({ project, onToggle }) => (
 );
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [devices, setDevices] = useState([]);
   const [sensors, setSensors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -230,6 +254,61 @@ const Dashboard = () => {
     }
   };
 
+  const handleDeviceCommand = async (device, commandPayload) => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+
+    if (!backendUrl) {
+      toast({
+        variant: 'destructive',
+        title: 'Backend não configurado',
+        description: 'Configure VITE_BACKEND_URL para enviar comandos MQTT.',
+      });
+      return;
+    }
+
+    const endpoint = commandPayload?.useConfigTopic
+      ? `/api/devices/${device.id}/config`
+      : '/api/command';
+
+    const response = await fetch(`${backendUrl.replace(/\/+$/, '')}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify(commandPayload?.useConfigTopic
+        ? {
+            ...(commandPayload?.payload || {}),
+            user_id: user?.id,
+          }
+        : {
+            device_id: device.id,
+            command: commandPayload?.command,
+            payload: commandPayload?.payload || {},
+            module: commandPayload?.module,
+            user_id: user?.id,
+          }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      toast({
+        variant: 'destructive',
+        title: 'Falha ao enviar comando',
+        description: payload.error || 'Tente novamente mais tarde.',
+      });
+      return;
+    }
+
+    toast({
+      title: commandPayload?.useConfigTopic ? 'ConfiguraÃ§Ã£o enviada' : 'Comando enviado',
+      description: commandPayload?.useConfigTopic
+        ? `Ajustes enviados para ${device.name}.`
+        : `${commandPayload?.command} enviado para ${device.name}.`,
+    });
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -296,7 +375,12 @@ const Dashboard = () => {
               </section>
 
               {selectedProject && (
-                <ProjectDashboard project={selectedProject} onToggle={handleDeviceToggle} />
+                <ProjectDashboard
+                  project={selectedProject}
+                  onToggle={handleDeviceToggle}
+                  onDeviceCommand={handleDeviceCommand}
+                  userId={user?.id}
+                />
               )}
             </>
           )}

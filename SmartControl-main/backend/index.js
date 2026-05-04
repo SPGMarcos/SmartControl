@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -14,18 +15,29 @@ const {
   MQTT_USERNAME,
   MQTT_PASSWORD,
   MQTT_CLIENT_ID,
+  MQTT_STATUS_TOPICS,
+  MQTT_REJECT_UNAUTHORIZED = 'true',
+  MQTT_REQUIRE_DEVICE_TOKEN = 'false',
+  CORS_ORIGIN,
+  REQUIRE_AUTH = 'false',
   PORT = 4000,
 } = process.env;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('Supabase service credentials are obrigatórios no backend. Verifique .env.');
+  throw new Error('SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY sao obrigatorios no backend.');
 }
 
 if (!MQTT_URL) {
-  throw new Error('MQTT_URL is obrigatório no backend. Verifique .env.');
+  throw new Error('MQTT_URL e obrigatorio no backend.');
 }
 
+const requireAuth = REQUIRE_AUTH === 'true';
+const requireDeviceToken = MQTT_REQUIRE_DEVICE_TOKEN === 'true';
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: {
+    persistSession: false,
+  },
   global: {
     headers: {
       'x-client-info': 'smartcontrol-backend',
@@ -33,16 +45,294 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   },
 });
 
+const normalizeTopicPart = (value = '') =>
+  value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\-_]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const normalizeTopicRoot = (topic = '') =>
+  topic
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/(cmd|status|telemetry|config|heartbeat|ack|availability)$/i, '');
+
+const buildMqttTopics = (device = {}) => {
+  const customRoot = device.mqtt_topic || device.topic;
+  const root = customRoot
+    ? normalizeTopicRoot(customRoot)
+    : `smartcontrol/${normalizeTopicPart(device.user_id || 'cliente')}/${normalizeTopicPart(device.project_name || 'default')}/${normalizeTopicPart(device.device_id || device.id || 'device')}`;
+
+  return {
+    root,
+    command: `${root}/cmd`,
+    status: `${root}/status`,
+    telemetry: `${root}/telemetry`,
+    config: `${root}/config`,
+    heartbeat: `${root}/heartbeat`,
+    ack: `${root}/ack`,
+    availability: `${root}/availability`,
+  };
+};
+
+const defaultStatusTopics = [
+  'smartcontrol/+/+/+/status',
+  'smartcontrol/+/+/+/telemetry',
+  'smartcontrol/+/+/+/heartbeat',
+  'smartcontrol/+/+/+/ack',
+  'smartcontrol/+/+/+/availability',
+  'smartcontrol/+/+/+/config',
+  'smartcontrol/pairing/+/announce',
+];
+
+const statusTopics = MQTT_STATUS_TOPICS
+  ? MQTT_STATUS_TOPICS.split(',').map((topic) => topic.trim()).filter(Boolean)
+  : defaultStatusTopics;
+
 const mqttClient = mqtt.connect(MQTT_URL, {
   username: MQTT_USERNAME,
   password: MQTT_PASSWORD,
-  clientId: MQTT_CLIENT_ID || `smartcontrol-backend-${Math.random().toString(36).substring(2, 8)}`,
+  clientId: MQTT_CLIENT_ID || `smartcontrol-backend-${Math.random().toString(36).slice(2, 8)}`,
   keepalive: 30,
   reconnectPeriod: 5000,
+  clean: true,
+  rejectUnauthorized: MQTT_REJECT_UNAUTHORIZED !== 'false',
 });
+
+const safeJsonParse = (value) => {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+
+  try {
+    return JSON.parse(value.toString());
+  } catch {
+    return { raw: value.toString() };
+  }
+};
+
+const parseJsonField = (value) => {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  return safeJsonParse(value);
+};
+
+const shouldRetryWithoutNewColumns = (error) => {
+  const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+  return message.includes('column') || message.includes('schema') || message.includes('cache');
+};
+
+const toBoolean = (value, fallback = false) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'on', 'online', 'ligado'].includes(normalized)) return true;
+    if (['false', '0', 'off', 'offline', 'desligado'].includes(normalized)) return false;
+  }
+
+  return fallback;
+};
+
+const maybeBoolean = (value) => {
+  if (typeof value === 'undefined' || value === null) return null;
+  return toBoolean(value);
+};
+
+const toBoundedInteger = (value, { min, max, fallback }) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(number)));
+};
+
+const logEvent = async ({ deviceId = null, userId = null, type, payload }) => {
+  const logPayload = {
+    device_id: deviceId,
+    user_id: userId,
+    type,
+    payload,
+    created_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase.from('logs').insert([logPayload]);
+
+  if (!error) return;
+
+  const fallback = await supabase.from('logs').insert([{
+    ...logPayload,
+    payload: JSON.stringify(payload),
+  }]);
+
+  if (fallback.error) {
+    console.warn('Nao foi possivel gravar log:', fallback.error.message);
+  }
+};
+
+const safeUpdateDevice = async (deviceId, payload) => {
+  const { error } = await supabase
+    .from('devices')
+    .update(payload)
+    .eq('id', deviceId);
+
+  if (!error) return;
+
+  if (!shouldRetryWithoutNewColumns(error)) {
+    console.error('Erro ao atualizar dispositivo:', error.message);
+    return;
+  }
+
+  const fallbackPayload = {};
+  if (typeof payload.status === 'boolean') fallbackPayload.status = payload.status;
+  if (typeof payload.online === 'boolean') fallbackPayload.online = payload.online;
+
+  if (Object.keys(fallbackPayload).length === 0) return;
+
+  const fallback = await supabase
+    .from('devices')
+    .update(fallbackPayload)
+    .eq('id', deviceId);
+
+  if (fallback.error) {
+    console.error('Erro ao atualizar fallback do dispositivo:', fallback.error.message);
+  }
+};
+
+const findDeviceByIdentity = async ({ topicRoot, dbId, deviceId, macAddress }) => {
+  if (topicRoot) {
+    const { data } = await supabase.from('devices').select('*').eq('mqtt_topic', topicRoot).maybeSingle();
+    if (data) return data;
+  }
+
+  if (dbId) {
+    const { data } = await supabase.from('devices').select('*').eq('id', dbId).maybeSingle();
+    if (data) return data;
+  }
+
+  if (deviceId) {
+    const { data } = await supabase.from('devices').select('*').eq('device_id', deviceId).maybeSingle();
+    if (data) return data;
+  }
+
+  if (macAddress) {
+    const { data } = await supabase.from('devices').select('*').eq('mac_address', macAddress).maybeSingle();
+    if (data) return data;
+  }
+
+  return null;
+};
+
+const extractIdentity = (topic, payload) => {
+  const parts = topic.split('/');
+  const topicRoot = normalizeTopicRoot(topic);
+  const deviceFromTopic = parts.length >= 4 && parts[0] === 'smartcontrol' ? parts[3] : null;
+
+  return {
+    topicRoot,
+    dbId: payload.smartcontrol_db_id || payload.db_id || null,
+    deviceId: payload.device_id || payload.deviceId || payload.id || deviceFromTopic,
+    macAddress: payload.mac_address || payload.mac || payload.network?.mac || null,
+  };
+};
+
+const getEventTypeFromTopic = (topic) => topic.split('/').pop();
+
+const hasValidDeviceToken = (device, payload) => {
+  if (!device?.device_token) return true;
+
+  const token = payload.device_token || payload.token || payload.auth?.device_token;
+  if (!token) return !requireDeviceToken;
+
+  return token === device.device_token;
+};
+
+const handleMqttMessage = async (topic, message) => {
+  const payload = safeJsonParse(message);
+  const eventType = getEventTypeFromTopic(topic);
+  const identity = extractIdentity(topic, payload);
+  const device = await findDeviceByIdentity(identity);
+
+  if (!device) {
+    await logEvent({
+      type: eventType === 'announce' ? 'device_pairing_announce' : 'mqtt_unmatched_message',
+      payload: { topic, payload, identity },
+    });
+    return;
+  }
+
+  if (!hasValidDeviceToken(device, payload)) {
+    await logEvent({
+      deviceId: device.id,
+      userId: device.user_id,
+      type: 'mqtt_invalid_device_token',
+      payload: { topic, identity },
+    });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const availabilityValue = payload.status ?? payload.state ?? payload.online;
+  const availabilityOffline =
+    eventType === 'availability' &&
+    ['offline', 'false', '0'].includes(String(availabilityValue || '').toLowerCase());
+
+  const pumpState = maybeBoolean(payload.v1 ?? payload.relays?.pump ?? payload.pump);
+  const nextConfiguration =
+    eventType === 'config'
+      ? {
+          ...parseJsonField(device.configuration),
+          remote_config: payload.payload || payload,
+          remote_config_received_at: now,
+        }
+      : undefined;
+
+  const updatePayload = {
+    connection_status: availabilityOffline ? 'offline' : 'online',
+    online: !availabilityOffline,
+    last_heartbeat: now,
+    last_state: payload,
+    telemetry: payload,
+  };
+
+  if (pumpState !== null) updatePayload.status = pumpState;
+  if (nextConfiguration) updatePayload.configuration = nextConfiguration;
+  if (payload.ip || payload.network?.ip) updatePayload.local_ip = payload.ip || payload.network.ip;
+  if (payload.mdns || payload.network?.mdns) updatePayload.mdns_hostname = payload.mdns || payload.network.mdns;
+  if (payload.mac || payload.network?.mac) updatePayload.mac_address = payload.mac || payload.network.mac;
+  if (payload.firmware_version || payload.firmwareVersion) {
+    updatePayload.firmware_version = payload.firmware_version || payload.firmwareVersion;
+  }
+  if (payload.hardware_version || payload.hardwareVersion) {
+    updatePayload.hardware_version = payload.hardware_version || payload.hardwareVersion;
+  }
+
+  await safeUpdateDevice(device.id, updatePayload);
+
+  await logEvent({
+    deviceId: device.id,
+    userId: device.user_id,
+    type: `mqtt_${eventType}`,
+    payload: { topic, payload },
+  });
+};
 
 mqttClient.on('connect', () => {
   console.log('MQTT backend conectado ao broker.');
+  mqttClient.subscribe(statusTopics, { qos: 1 }, (error) => {
+    if (error) {
+      console.error('Erro ao assinar topicos MQTT:', error.message);
+      return;
+    }
+    console.log('Topicos MQTT assinados:', statusTopics.join(', '));
+  });
+});
+
+mqttClient.on('message', (topic, message) => {
+  handleMqttMessage(topic, message).catch((error) => {
+    console.error('Erro ao processar mensagem MQTT:', error);
+  });
 });
 
 mqttClient.on('reconnect', () => {
@@ -53,77 +343,364 @@ mqttClient.on('error', (error) => {
   console.error('Erro MQTT:', error?.message || error);
 });
 
+const validateHydroponicsCommand = ({ command, payload }) => {
+  switch (command) {
+    case 'set_auto':
+      return { command, payload: { enabled: toBoolean(payload.enabled) } };
+
+    case 'set_relay': {
+      const relay = String(payload.relay || '').trim();
+      if (!['pump', 'oxygenator'].includes(relay)) {
+        throw new Error('Relay invalido. Use pump ou oxygenator.');
+      }
+      return { command, payload: { relay, value: toBoolean(payload.value) } };
+    }
+
+    case 'set_timers': {
+      const tOn = toBoundedInteger(payload.tOn, { min: 1, max: 1440, fallback: null });
+      const tOff = toBoundedInteger(payload.tOff, { min: 1, max: 1440, fallback: null });
+      if (!tOn || !tOff) {
+        throw new Error('Tempos invalidos. Use valores entre 1 e 1440 minutos.');
+      }
+      return { command, payload: { tOn, tOff } };
+    }
+
+    case 'request_status':
+      return { command, payload: {} };
+
+    case 'factory_reset':
+      if (payload.confirm !== true) {
+        throw new Error('factory_reset exige payload.confirm=true.');
+      }
+      return { command, payload: { confirm: true } };
+
+    default:
+      throw new Error('Comando de hidroponia nao permitido.');
+  }
+};
+
+const validateHydroponicsConfig = (payload = {}) => {
+  const config = {};
+
+  if (Object.hasOwn(payload, 'enabled') || Object.hasOwn(payload, 'automatic')) {
+    config.enabled = toBoolean(payload.enabled ?? payload.automatic);
+  }
+
+  if (Object.hasOwn(payload, 'tOn')) {
+    config.tOn = toBoundedInteger(payload.tOn, { min: 1, max: 1440, fallback: 10 });
+  }
+
+  if (Object.hasOwn(payload, 'tOff')) {
+    config.tOff = toBoundedInteger(payload.tOff, { min: 1, max: 1440, fallback: 10 });
+  }
+
+  if (Object.keys(config).length === 0) {
+    throw new Error('Envie ao menos enabled/automatic, tOn ou tOff.');
+  }
+
+  return config;
+};
+
+const normalizeCommand = ({ command, payload = {}, module }, device) => {
+  const commandObject = typeof command === 'object' && command !== null ? command : { command, payload, module };
+  const normalizedCommand = String(commandObject.command || '').trim();
+  const normalizedPayload = commandObject.payload || payload || {};
+  const normalizedModule = commandObject.module || module || device.module_type || device.device_model || 'generic_iot';
+  const isHydroponics =
+    normalizedModule === 'heltec_esp32_lora_hydroponics' ||
+    device.module_type === 'heltec_esp32_lora_hydroponics' ||
+    device.device_model === 'heltec_esp32_lora_hydroponics' ||
+    device.type === 'hydroponics';
+
+  if (!normalizedCommand) {
+    throw new Error('Comando vazio.');
+  }
+
+  if (isHydroponics) {
+    const validated = validateHydroponicsCommand({
+      command: normalizedCommand,
+      payload: normalizedPayload,
+    });
+    return { ...validated, module: 'heltec_esp32_lora_hydroponics' };
+  }
+
+  const genericCommands = ['toggle', 'on', 'off', 'status', 'request_status'];
+  if (!genericCommands.includes(normalizedCommand)) {
+    throw new Error('Comando generico nao permitido.');
+  }
+
+  return { command: normalizedCommand, payload: normalizedPayload, module: normalizedModule };
+};
+
+const getRequestUser = async (req) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+  if (!token) return null;
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error) return null;
+
+  return data.user || null;
+};
+
+const resolveAuthorizedDevice = async (req, res, lookup) => {
+  const requestUser = await getRequestUser(req);
+
+  if (requireAuth && !requestUser) {
+    res.status(401).json({ error: 'Autenticacao obrigatoria.' });
+    return null;
+  }
+
+  const device = await findDeviceByIdentity(lookup);
+
+  if (!device) {
+    res.status(404).json({ error: 'Dispositivo nao encontrado.' });
+    return null;
+  }
+
+  const bodyUserId = req.body?.user_id || req.query?.user_id || null;
+  const requestUserId = requestUser?.id || bodyUserId || null;
+
+  if (device.user_id && requestUserId && device.user_id !== requestUserId) {
+    res.status(403).json({ error: 'Dispositivo pertence a outro usuario.' });
+    return null;
+  }
+
+  if (requireAuth && device.user_id && requestUser?.id !== device.user_id) {
+    res.status(403).json({ error: 'Dispositivo pertence a outro usuario.' });
+    return null;
+  }
+
+  return {
+    device,
+    requestUser,
+    userId: requestUser?.id || bodyUserId || device.user_id || null,
+  };
+};
+
+const publishJson = async (topic, payload, options = {}) => {
+  if (!mqttClient.connected) {
+    const error = new Error('Backend MQTT offline. Tente novamente quando /health indicar mqtt_connected=true.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  await new Promise((resolve, reject) => {
+    mqttClient.publish(
+      topic,
+      JSON.stringify(payload),
+      { qos: options.qos ?? 1, retain: options.retain ?? false },
+      (error) => {
+        if (error) reject(error);
+        else resolve();
+      },
+    );
+  });
+};
+
+const publishCommandForDevice = async ({ device, command, payload, module, userId }) => {
+  const topics = buildMqttTopics(device);
+  const requestId = randomUUID();
+  const mqttPayload = {
+    protocol: 'smartcontrol.mqtt.v1',
+    request_id: requestId,
+    module,
+    device_id: device.device_id || device.id,
+    command,
+    payload,
+    sent_at: new Date().toISOString(),
+    user_id: userId || null,
+  };
+
+  await publishJson(topics.command, mqttPayload, { qos: 1, retain: false });
+
+  await logEvent({
+    deviceId: device.id,
+    userId,
+    type: 'command_sent',
+    payload: { topic: topics.command, payload: mqttPayload },
+  });
+
+  return { status: 'sent', topic: topics.command, payload: mqttPayload };
+};
+
+const publishConfigForDevice = async ({ device, config, userId }) => {
+  const topics = buildMqttTopics(device);
+  const requestId = randomUUID();
+  const mqttPayload = {
+    protocol: 'smartcontrol.mqtt.v1',
+    request_id: requestId,
+    module: device.module_type || device.device_model || 'generic_iot',
+    device_id: device.device_id || device.id,
+    command: 'set_config',
+    payload: config,
+    sent_at: new Date().toISOString(),
+    user_id: userId || null,
+  };
+
+  await publishJson(topics.config, mqttPayload, { qos: 1, retain: true });
+
+  await safeUpdateDevice(device.id, {
+    configuration: {
+      ...parseJsonField(device.configuration),
+      mqtt_topics: topics,
+      pending_remote_config: config,
+      pending_remote_config_at: mqttPayload.sent_at,
+    },
+  });
+
+  await logEvent({
+    deviceId: device.id,
+    userId,
+    type: 'config_sent',
+    payload: { topic: topics.config, payload: mqttPayload },
+  });
+
+  return { status: 'sent', topic: topics.config, payload: mqttPayload };
+};
+
 const app = express();
 app.use(helmet());
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: (origin, callback) => {
+    const allowed = (CORS_ORIGIN || '').split(',').map((item) => item.trim()).filter(Boolean);
+    if (!origin || allowed.length === 0 || allowed.includes('*') || allowed.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origem nao permitida pelo CORS.'));
+  },
+  credentials: true,
+}));
+app.use(express.json({ limit: '100kb' }));
+
+app.get('/', (req, res) => {
+  return res.json({
+    service: 'SmartControl MQTT Backend',
+    status: 'online',
+    health: '/health',
+  });
+});
 
 app.get('/health', (req, res) => {
-  return res.json({ status: 'ok', version: '1.0.0' });
+  return res.json({
+    status: 'ok',
+    version: '1.2.0',
+    mqtt_connected: mqttClient.connected,
+    subscribed_topics: statusTopics,
+    auth_required: requireAuth,
+    device_token_required: requireDeviceToken,
+  });
+});
+
+app.get('/api/devices/:id/topics', async (req, res) => {
+  const resolved = await resolveAuthorizedDevice(req, res, { dbId: req.params.id, deviceId: req.params.id });
+  if (!resolved) return;
+
+  return res.json({
+    device_id: resolved.device.device_id || resolved.device.id,
+    topics: buildMqttTopics(resolved.device),
+  });
+});
+
+app.get('/api/devices/:id/state', async (req, res) => {
+  const resolved = await resolveAuthorizedDevice(req, res, { dbId: req.params.id, deviceId: req.params.id });
+  if (!resolved) return;
+
+  return res.json({
+    device: resolved.device,
+    state: parseJsonField(resolved.device.last_state),
+    telemetry: parseJsonField(resolved.device.telemetry),
+    topics: buildMqttTopics(resolved.device),
+  });
+});
+
+app.get('/api/devices/:id/logs', async (req, res) => {
+  const resolved = await resolveAuthorizedDevice(req, res, { dbId: req.params.id, deviceId: req.params.id });
+  if (!resolved) return;
+
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const { data, error } = await supabase
+    .from('logs')
+    .select('*')
+    .eq('device_id', resolved.device.id)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  return res.json({ logs: data || [] });
 });
 
 app.post('/api/command', async (req, res) => {
-  const { device_id, command, user_id, device_token } = req.body;
+  const { device_id: requestDeviceId, command, payload, module, device_token: deviceToken } = req.body;
 
-  if (!device_id || !command) {
-    return res.status(400).json({ error: 'device_id e command são obrigatórios.' });
+  if (!requestDeviceId || !command) {
+    return res.status(400).json({ error: 'device_id e command sao obrigatorios.' });
   }
 
   try {
-    const { data: device, error: fetchError } = await supabase
-      .from('devices')
-      .select('*')
-      .eq('id', device_id)
-      .single();
+    const resolved = await resolveAuthorizedDevice(req, res, { dbId: requestDeviceId, deviceId: requestDeviceId });
+    if (!resolved) return;
 
-    if (fetchError || !device) {
-      return res.status(404).json({ error: 'Dispositivo não encontrado.' });
+    if (deviceToken && resolved.device.device_token && deviceToken !== resolved.device.device_token) {
+      return res.status(403).json({ error: 'Token de dispositivo invalido.' });
     }
 
-    if (device_token && device.device_token && device_token !== device.device_token) {
-      return res.status(403).json({ error: 'Token de dispositivo inválido.' });
-    }
-
-    const topic = device.mqtt_topic || device.topic || `smartcontrol/${device.user_id}/${device.project_name || 'default'}/${device.device_id || device.id}/cmd`;
-    const payload = {
-      device_id: device.device_id || device.id,
-      command,
-      sent_at: new Date().toISOString(),
-      user_id,
-    };
-
-    mqttClient.publish(topic, JSON.stringify(payload), { qos: 1, retain: false }, (err) => {
-      if (err) {
-        console.error('Erro ao publicar MQTT:', err);
-
-        supabase.from('logs').insert([{
-          device_id: device.id,
-          user_id: user_id || null,
-          type: 'mqtt_publish_error',
-          payload: JSON.stringify({ topic, payload, error: err.message || err }),
-          created_at: new Date().toISOString(),
-        }]).catch((logError) => {
-          console.error('Erro ao gravar log MQTT:', logError);
-        });
-
-        return res.status(500).json({ error: 'Falha ao enviar comando ao broker MQTT.' });
-      }
-
-      supabase.from('logs').insert([{
-        device_id: device.id,
-        user_id: user_id || null,
-        type: 'command_sent',
-        payload: JSON.stringify({ topic, payload }),
-        created_at: new Date().toISOString(),
-      }]).catch((logError) => {
-        console.error('Erro ao gravar log de comando:', logError);
-      });
-
-      return res.json({ status: 'sent', topic, payload });
+    const normalized = normalizeCommand({ command, payload, module }, resolved.device);
+    const result = await publishCommandForDevice({
+      device: resolved.device,
+      ...normalized,
+      userId: resolved.userId,
     });
+
+    return res.json(result);
   } catch (error) {
     console.error('Erro no backend de comando:', error);
-    return res.status(500).json({ error: 'Erro interno no backend de integração.' });
+    return res.status(error.statusCode || 400).json({ error: error.message || 'Erro interno no backend de integracao.' });
+  }
+});
+
+app.post('/api/devices/:id/config', async (req, res) => {
+  try {
+    const resolved = await resolveAuthorizedDevice(req, res, { dbId: req.params.id, deviceId: req.params.id });
+    if (!resolved) return;
+
+    const isHydroponics =
+      resolved.device.module_type === 'heltec_esp32_lora_hydroponics' ||
+      resolved.device.device_model === 'heltec_esp32_lora_hydroponics' ||
+      resolved.device.type === 'hydroponics';
+
+    const config = isHydroponics ? validateHydroponicsConfig(req.body || {}) : req.body || {};
+    const result = await publishConfigForDevice({
+      device: resolved.device,
+      config,
+      userId: resolved.userId,
+    });
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({ error: error.message });
+  }
+});
+
+app.post('/api/devices/:id/request-status', async (req, res) => {
+  try {
+    const resolved = await resolveAuthorizedDevice(req, res, { dbId: req.params.id, deviceId: req.params.id });
+    if (!resolved) return;
+
+    const normalized = normalizeCommand({ command: 'request_status', payload: {} }, resolved.device);
+    const result = await publishCommandForDevice({
+      device: resolved.device,
+      ...normalized,
+      userId: resolved.userId,
+    });
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({ error: error.message });
   }
 });
 

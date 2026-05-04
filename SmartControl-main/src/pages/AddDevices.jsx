@@ -11,7 +11,13 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { Cpu, Plus, ShieldCheck } from 'lucide-react';
 import { deviceModelOptions, projectTemplates, protocolOptions } from '@/lib/deviceProjects';
-import { buildDeviceExternalId, generateDeviceToken } from '@/lib/mqttTopics';
+import { buildDeviceExternalId, buildMqttTopics, generateDeviceToken } from '@/lib/mqttTopics';
+import {
+  HYDROPONICS_CAPABILITIES,
+  HYDROPONICS_DEFAULT_FIRMWARE,
+  HYDROPONICS_DEVICE_TYPE,
+  HYDROPONICS_MODULE_TYPE,
+} from '@/lib/hydroponicsHeltec';
 import { sanitizeText } from '@/lib/security';
 
 const AddDevice = () => {
@@ -29,6 +35,8 @@ const AddDevice = () => {
     macAddress: '',
     firmwareVersion: '',
     hardwareVersion: '',
+    localIp: '',
+    mdnsHostname: '',
     deviceToken: generateDeviceToken(),
   });
 
@@ -37,6 +45,7 @@ const AddDevice = () => {
     { value: 'light', label: 'Iluminação' },
     { value: 'motor', label: 'Motor / Bomba' },
     { value: 'sensor', label: 'Sensor' },
+    { value: HYDROPONICS_DEVICE_TYPE, label: 'Hidroponia inteligente' },
   ];
 
   const shouldRetryWithoutNewColumns = (error) => {
@@ -65,8 +74,18 @@ const AddDevice = () => {
     const safeMacAddress = sanitizeText(formData.macAddress, 40);
     const safeFirmware = sanitizeText(formData.firmwareVersion, 40);
     const safeHardware = sanitizeText(formData.hardwareVersion, 40);
+    const safeLocalIp = sanitizeText(formData.localIp, 60);
+    const safeMdnsHostname = sanitizeText(formData.mdnsHostname, 80);
     const safeMqttBroker = sanitizeText(formData.mqttBroker, 120);
     const safeDeviceToken = sanitizeText(formData.deviceToken, 120);
+    const isHydroponicsModule =
+      formData.type === HYDROPONICS_DEVICE_TYPE || formData.deviceModel === HYDROPONICS_MODULE_TYPE;
+    const topics = buildMqttTopics({
+      client: user.id,
+      project: safeProjectName,
+      deviceId: safeDeviceId,
+      customTopic: safeMqttTopic,
+    });
 
     const basePayload = {
       user_id: user.id,
@@ -77,7 +96,7 @@ const AddDevice = () => {
       firmware_version: safeFirmware,
       hardware_version: safeHardware,
       mqtt_broker: safeMqttBroker,
-      mqtt_topic: safeMqttTopic,
+      mqtt_topic: topics.root,
       device_token: safeDeviceToken,
     };
 
@@ -89,6 +108,28 @@ const AddDevice = () => {
       protocol: formData.protocol,
       connection_status: 'offline',
       pairing_status: 'manual',
+      module_type: isHydroponicsModule ? HYDROPONICS_MODULE_TYPE : 'generic_iot',
+      local_ip: safeLocalIp,
+      mdns_hostname: safeMdnsHostname,
+      capabilities: isHydroponicsModule ? HYDROPONICS_CAPABILITIES : {},
+      configuration: {
+        mqtt_topics: topics,
+        local_dashboard: safeLocalIp || safeMdnsHostname || null,
+        pairing: {
+          mode: 'manual',
+          token_created_at: new Date().toISOString(),
+        },
+      },
+      last_state: isHydroponicsModule
+        ? {
+            t24: true,
+            v1: true,
+            v2: true,
+            tOn: 10,
+            tOff: 10,
+            rem: 0,
+          }
+        : {},
     };
 
     let { error } = await supabase
@@ -118,11 +159,50 @@ const AddDevice = () => {
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
+    const { name, value } = e.target;
+
+    setFormData((current) => {
+      const next = {
+        ...current,
+        [name]: value,
+      };
+
+      if (name === 'deviceModel' && value === HYDROPONICS_MODULE_TYPE) {
+        return {
+          ...next,
+          name: current.name || 'Hidroponia Heltec LoRa',
+          type: HYDROPONICS_DEVICE_TYPE,
+          projectName: 'Hidroponia inteligente',
+          protocol: 'mqtt',
+          deviceId: current.deviceId || 'hidroponia01',
+          firmwareVersion: current.firmwareVersion || HYDROPONICS_DEFAULT_FIRMWARE,
+          hardwareVersion: current.hardwareVersion || 'Heltec ESP32 LoRa V2',
+          mdnsHostname: current.mdnsHostname || 'smarthidroponia.local',
+        };
+      }
+
+      if (name === 'type' && value === HYDROPONICS_DEVICE_TYPE) {
+        return {
+          ...next,
+          projectName: 'Hidroponia inteligente',
+          deviceModel: HYDROPONICS_MODULE_TYPE,
+          protocol: 'mqtt',
+          firmwareVersion: current.firmwareVersion || HYDROPONICS_DEFAULT_FIRMWARE,
+          hardwareVersion: current.hardwareVersion || 'Heltec ESP32 LoRa V2',
+          mdnsHostname: current.mdnsHostname || 'smarthidroponia.local',
+        };
+      }
+
+      return next;
     });
   };
+
+  const topicPreview = buildMqttTopics({
+    client: user?.id || 'cliente',
+    project: formData.projectName,
+    deviceId: formData.deviceId || 'hidroponia01',
+    customTopic: formData.mqttTopic,
+  });
 
   return (
     <>
@@ -289,6 +369,31 @@ const AddDevice = () => {
                 </div>
               </div>
 
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="localIp" className="text-white">IP local</Label>
+                  <Input
+                    id="localIp"
+                    name="localIp"
+                    value={formData.localIp}
+                    onChange={handleChange}
+                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                    placeholder="Ex: 192.168.1.80"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="mdnsHostname" className="text-white">mDNS local</Label>
+                  <Input
+                    id="mdnsHostname"
+                    name="mdnsHostname"
+                    value={formData.mdnsHostname}
+                    onChange={handleChange}
+                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                    placeholder="smarthidroponia.local"
+                  />
+                </div>
+              </div>
+
               <div className="rounded-xl border border-purple-500/20 bg-black/30 p-4">
                 <Label htmlFor="deviceToken" className="text-white">Token do Dispositivo</Label>
                 <Input
@@ -298,6 +403,15 @@ const AddDevice = () => {
                   readOnly
                   className="mt-2 bg-black/40 border-purple-500/30 text-white"
                 />
+              </div>
+
+              <div className="rounded-xl border border-purple-500/20 bg-black/30 p-4">
+                <p className="text-sm font-semibold text-white">Tópicos MQTT gerados</p>
+                <div className="mt-3 grid gap-3 text-sm text-gray-300">
+                  <p className="break-all"><span className="text-gray-500">CMD:</span> {topicPreview.command}</p>
+                  <p className="break-all"><span className="text-gray-500">STATUS:</span> {topicPreview.status}</p>
+                  <p className="break-all"><span className="text-gray-500">HEARTBEAT:</span> {topicPreview.heartbeat}</p>
+                </div>
               </div>
 
               <div className="border-t border-purple-500/30 pt-6">
@@ -330,14 +444,12 @@ const AddDevice = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="mqttTopic" className="text-white">Tópico MQTT</Label>
+                    <Label htmlFor="mqttCommandTopicPreview" className="text-white">Tópico final de comando</Label>
                     <Input
-                      id="mqttTopic"
-                      name="mqttTopic"
-                      value={formData.mqttTopic}
-                      onChange={handleChange}
+                      id="mqttCommandTopicPreview"
+                      value={topicPreview.command}
+                      readOnly
                       className="mt-2 bg-black/50 border-purple-500/30 text-white"
-                      placeholder="smartcontrol/dispositivo/controle"
                     />
                   </div>
                 </div>

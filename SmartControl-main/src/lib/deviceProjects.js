@@ -14,6 +14,11 @@ const DEFAULT_PROJECTS = {
     type: 'greenhouse',
     description: 'Sensores, iluminação, controle climático e cultivo protegido.',
   },
+  hydroponics: {
+    name: 'Hidroponia inteligente',
+    type: 'hydroponics',
+    description: 'Bomba, oxigenador, temporizador ciclico e operacao local/remota para cultivo hidroponico.',
+  },
   lighting: {
     name: 'Iluminação externa',
     type: 'lighting',
@@ -44,6 +49,7 @@ export const projectTemplates = [
     description: 'Irrigação, sensores e automações para hortas compactas.',
   },
   DEFAULT_PROJECTS.greenhouse,
+  DEFAULT_PROJECTS.hydroponics,
   DEFAULT_PROJECTS.pump,
   DEFAULT_PROJECTS.lighting,
   DEFAULT_PROJECTS.garden,
@@ -56,6 +62,7 @@ export const deviceModelOptions = [
   { value: 'esp8266', label: 'ESP8266' },
   { value: 'esp01', label: 'ESP-01' },
   { value: 'esp32_lora', label: 'ESP32 LoRa' },
+  { value: 'heltec_esp32_lora_hydroponics', label: 'Heltec ESP32 LoRa - Hidroponia SmartControl' },
   { value: 'relay_module', label: 'Módulo de relé' },
   { value: 'sensor_module', label: 'Módulo de sensor' },
   { value: 'custom', label: 'Dispositivo SmartControl personalizado' },
@@ -94,6 +101,7 @@ export const getDeviceProjectName = (device) => {
 
   const text = normalize(`${device?.name || ''} ${device?.type || ''} ${device?.mqtt_topic || ''}`);
 
+  if (text.includes('hidroponia') || text.includes('hydroponics') || text.includes('heltec')) return DEFAULT_PROJECTS.hydroponics.name;
   if (text.includes('estufa') || text.includes('greenhouse')) return DEFAULT_PROJECTS.greenhouse.name;
   if (text.includes('horta')) return 'Horta urbana';
   if (text.includes('bomba') || text.includes('motor') || text.includes('poco') || text.includes('poço')) return DEFAULT_PROJECTS.pump.name;
@@ -121,7 +129,12 @@ export const getDeviceProtocolLabel = (device) => {
 
 export const isDeviceOnline = (device) => {
   const rawStatus = device?.connection_status || device?.online_status;
-  if (typeof rawStatus === 'string') return rawStatus.toLowerCase() === 'online';
+  const lastHeartbeat = device?.last_heartbeat ? new Date(device.last_heartbeat).getTime() : null;
+  const heartbeatIsFresh = lastHeartbeat ? Date.now() - lastHeartbeat < 2 * 60 * 1000 : true;
+
+  if (typeof rawStatus === 'string') {
+    return rawStatus.toLowerCase() === 'online' && heartbeatIsFresh;
+  }
   if (typeof device?.online === 'boolean') return device.online;
 
   return Boolean(device?.status);

@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Cpu, Layers, ShieldCheck, Wifi } from 'lucide-react';
+import { ArrowLeft, Layers, ShieldCheck, Wifi } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
+import HydroponicsDevicePanel from '@/components/HydroponicsDevicePanel';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { buildMqttTopics, buildDeviceExternalId } from '@/lib/mqttTopics';
@@ -12,14 +13,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { getDeviceModelLabel, getDeviceProtocolLabel, getDeviceProjectName, isDeviceOnline } from '@/lib/deviceProjects';
+import { isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
 
 const DeviceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [device, setDevice] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [command, setCommand] = useState('toggle');
+  const [command, setCommand] = useState('request_status');
   const [sending, setSending] = useState(false);
 
   const fetchDevice = async () => {
@@ -49,8 +51,7 @@ const DeviceDetail = () => {
     fetchDevice();
   }, [user, id]);
 
-  const handleSendCommand = async (event) => {
-    event.preventDefault();
+  const sendDeviceCommand = async (commandPayload) => {
     if (!device) return;
     setSending(true);
 
@@ -65,16 +66,28 @@ const DeviceDetail = () => {
       return;
     }
 
-    const response = await fetch(`${backendUrl.replace(/\/+$/, '')}/api/command`, {
+    const endpoint = commandPayload?.useConfigTopic
+      ? `/api/devices/${device.id}/config`
+      : '/api/command';
+
+    const response = await fetch(`${backendUrl.replace(/\/+$/, '')}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
       },
-      body: JSON.stringify({
-        device_id: device.id,
-        command: command.trim(),
-        user_id: user?.id,
-      }),
+      body: JSON.stringify(commandPayload?.useConfigTopic
+        ? {
+            ...(commandPayload?.payload || {}),
+            user_id: user?.id,
+          }
+        : {
+            device_id: device.id,
+            command: commandPayload?.command || commandPayload,
+            payload: commandPayload?.payload || {},
+            module: commandPayload?.module,
+            user_id: user?.id,
+          }),
     });
 
     const payload = await response.json();
@@ -89,10 +102,17 @@ const DeviceDetail = () => {
     }
 
     toast({
-      title: 'Comando enviado',
-      description: `Comando '${command}' enviado para ${device.name}.`,
+      title: commandPayload?.useConfigTopic ? 'ConfiguraÃ§Ã£o enviada' : 'Comando enviado',
+      description: commandPayload?.useConfigTopic
+        ? `Ajustes enviados para ${device.name}.`
+        : `Comando '${commandPayload?.command || commandPayload}' enviado para ${device.name}.`,
     });
     setSending(false);
+  };
+
+  const handleSendCommand = async (event) => {
+    event.preventDefault();
+    await sendDeviceCommand({ command: command.trim() });
   };
 
   if (loading || !device) {
@@ -111,6 +131,7 @@ const DeviceDetail = () => {
   });
 
   const online = isDeviceOnline(device);
+  const hydroponicsDevice = isHydroponicsDevice(device);
 
   return (
     <>
@@ -232,6 +253,15 @@ const DeviceDetail = () => {
               </div>
             </motion.section>
           </div>
+
+          {hydroponicsDevice && (
+            <HydroponicsDevicePanel
+              device={device}
+              topics={topics}
+              onCommand={sendDeviceCommand}
+              onConfig={(configPayload) => sendDeviceCommand({ command: 'remote_config', payload: configPayload, useConfigTopic: true })}
+            />
+          )}
         </div>
       </DashboardLayout>
     </>

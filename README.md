@@ -1,113 +1,32 @@
-# 🌐 SmartControl
-Interface Web para Monitoramento e Controle de Soluções IoT
+# SmartControl
 
-Dashboard responsivo de alta performance para visualização e interação com ecossistemas de automação baseados em ESP8266/ESP32, com suporte a MQTT e integração com Home Assistant.
+Plataforma IoT para automacao residencial e agricola, com dashboard React/Vite, backend Node.js, Supabase, MQTT Cloud e firmware Heltec ESP32 LoRa de hidroponia.
 
-🔗 Página do Projeto: spgmarcos.github.io/SmartControl/
+O codigo principal esta em [`SmartControl-main`](SmartControl-main).
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/765d36a1-53f3-4fbd-bec5-aa16c9f197ff"" width="800" alt="Dashboard de Irrigação">
-</div>
+Guia completo de producao gratuita:
 
-## 📌 Visão Geral
-O SmartControl é o hub visual de controle para dispositivos IoT. Este repositório reúne o frontend da aplicação, desenvolvido para atuar como o painel de comando central de automações residenciais e agrícolas. O foco principal é a entrega de dados de sensores e o controle de atuadores com baixa latência e alta disponibilidade.
+- [`SmartControl-main/docs/arquitetura.md`](SmartControl-main/docs/arquitetura.md)
 
-O sistema irá permitir:
+Fluxo implementado:
 
-- Monitorar sensores (umidade, temperatura, presença) em tempo real.
+```text
+Heltec ESP32 LoRa
+  -> MQTT Cloud
+  -> Backend Node.js
+  -> Supabase
+  -> Dashboard GitHub Pages
+```
 
-- Acionar atuadores (relés, motores, válvulas) via interface web.
+Firmware integrado:
 
-- Visualizar o estado dos dispositivos integrados ao Home Assistant.
+- [`SmartControl-main/firmware/hidroponia/hidroponia_heltec.ino`](SmartControl-main/firmware/hidroponia/hidroponia_heltec.ino)
 
-- Acessar o controle total de qualquer dispositivo (Mobile, Tablet ou PC).
+Deploy:
 
-## 🎯 Objetivos do Projeto
-Desenvolver uma interface de controle IoT que seja:
-
-- Cloud-Independent: Capaz de operar em rede local ou via web sem dependência de serviços de terceiros.
-
-- Leve e Veloz: Carregamento instantâneo para dispositivos de hardware limitado.
-
-- Universal: Acessível via navegador, eliminando a necessidade de instalação de apps.
-
-- Escalável: Estrutura pronta para receber novos módulos e diferentes tipos de sensores.
-
-## 🧠 Arquitetura do Sistema
-      Usuário (Navegador)
-      ↓
-      Interface Web (GitHub Pages / Local)
-      ↓
-      Comunicação (Fetch API / MQTT / REST)
-      ↓
-      Microcontrolador (ESP8266 / ESP32)
-      ↓
-      Sensores e Atuadores (Hardware)
-
-## 🔌 Compatibilidade de Hardware
-- Microcontroladores: ESP8266 (NodeMCU/Wemos) e ESP32.
-
-- Protocolos: HTTP/HTTPS, WebSockets e MQTT.
-
-- Integrações: Home Assistant, Node-RED e Brokers MQTT (Mosquitto/HiveMQ).
-
-## ⚙️ Principais Funcionalidades
-### 1. Dashboard Interativo
-
-- Widgets dinâmicos para visualização de telemetria.
-
-- Botões com feedback visual de estado (On/Off).
-
-- Layout adaptável para modo escuro (Dark Theme).
-
-### 2. Monitoramento Real-time
-
-- Atualização de dados via AJAX/Fetch para evitar o recarregamento da página.
-
-- Sistema de pooling configurável para leitura de sensores de solo e ambiente.
-
-### 3. Controle de Atuadores
-
-- Interface otimizada para acionamento de relés de potência.
-
-- Sincronização de estado: a interface reflete o estado real do hardware.
-
-### 4. Acessibilidade e Portabilidade
-
-- Hospedagem via GitHub Pages, garantindo acesso global.
-
-- Design Mobile-First focado na experiência do usuário em campo ou em casa.
-
-## 🌐 Interface Web
-A interface foi projetada para ser robusta e visualmente limpa, utilizando as melhores práticas de frontend moderno:
-
-- HTML5 & CSS3: Layouts em Flexbox e Grid para responsividade total.
-
-- JavaScript (ES6+): Lógica assíncrona para comunicação com o hardware.
-
-- Design Moderno: Componentes intuitivos e paleta de cores focada em legibilidade.
-
-## 🛡️ Estabilidade e Segurança
-- Validação de Dados: Filtros no frontend para garantir que apenas comandos válidos sejam enviados ao ESP.
-
-- Operação Local: Suporte a endereços mDNS (.local) para controle em redes internas sem internet.
-
-- Tratamento de Erros: Feedback ao usuário em caso de perda de conexão com o dispositivo.
-
-## 📊 Diferenciais Técnicos
--  Interface desacoplada (funciona com diversos firmwares)
-
--  Deploy automatizado via GitHub Pages
-
--  Código otimizado para SEO e performance
-
--  Estrutura modular fácil de personalizar
-
-## 👨‍💻 Autor
-Marcos Gabriel Ferreira Miranda 
-
-Desenvolvedor IoT | Automação Residencial e Agrícola | 
-
-Irrigação, Bombas e Controle Remoto | Fundador da SmartControl
-
-Belo Horizonte - MG
+1. Execute o schema Supabase em `SmartControl-main/supabase/smartcontrol_iot_schema.sql`.
+2. Configure MQTT Cloud com usuario/senha e ACL por topico.
+3. Publique `SmartControl-main/backend` no Render.
+4. Configure os secrets do GitHub Pages.
+5. Ative Pages com source `GitHub Actions`.
+6. Configure o ESP32 em `http://smarthidroponia.local/settings`.

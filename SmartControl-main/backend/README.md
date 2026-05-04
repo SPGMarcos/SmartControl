@@ -1,32 +1,60 @@
 # SmartControl Backend
 
-Este backend provê integração MQTT em nuvem para o SmartControl.
+Backend Node.js para ponte MQTT Cloud -> Supabase -> Dashboard.
 
-## Instalação
+## Comandos
 
-1. `cd backend`
-2. `npm install`
-3. Copie `.env.example` para `.env`
-4. Preencha as variáveis de ambiente com as credenciais do Supabase e do broker MQTT
+```bash
+npm install
+npm start
+```
 
-## Execução
+## Endpoints
 
-- `npm run dev` - executa em modo de desenvolvimento com `nodemon`
-- `npm start` - executa em modo de produção
+- `GET /health`
+- `GET /api/devices/:id/topics`
+- `GET /api/devices/:id/state`
+- `GET /api/devices/:id/logs`
+- `POST /api/command`
+- `POST /api/devices/:id/config`
+- `POST /api/devices/:id/request-status`
 
-## Endpoints principais
+Em producao, use `REQUIRE_AUTH=true`. O frontend envia o JWT Supabase em `Authorization: Bearer <token>`.
 
-- `GET /health` - verifica se o backend está rodando
-- `POST /api/command` - envia comando MQTT para um dispositivo cadastrado
+## Variaveis
 
-## Fluxo de comando
+```env
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key
+MQTT_URL=mqtts://seu-broker:8883
+MQTT_USERNAME=smartcontrol-backend
+MQTT_PASSWORD=senha-forte
+MQTT_CLIENT_ID=smartcontrol-backend
+MQTT_REJECT_UNAUTHORIZED=true
+MQTT_REQUIRE_DEVICE_TOKEN=false
+CORS_ORIGIN=https://seu-usuario.github.io
+REQUIRE_AUTH=true
+PORT=4000
+```
 
-1. O frontend chama `POST /api/command` com `device_id` e `command`
-2. O backend busca o dispositivo no Supabase
-3. O backend publica o comando no tópico MQTT configurado
-4. O backend grava um log de evento no Supabase
+## MQTT
 
-## Observações
+O backend assina:
 
-- Use broker MQTT com TLS/SSL e autenticação segura para produção
-- O backend usa `SUPABASE_SERVICE_ROLE_KEY` para operações administrativas seguras
+```text
+smartcontrol/+/+/+/status
+smartcontrol/+/+/+/telemetry
+smartcontrol/+/+/+/heartbeat
+smartcontrol/+/+/+/ack
+smartcontrol/+/+/+/availability
+smartcontrol/+/+/+/config
+```
+
+E publica:
+
+```text
+smartcontrol/{cliente}/{projeto}/{device_id}/cmd
+smartcontrol/{cliente}/{projeto}/{device_id}/config
+```
+
+O modulo de hidroponia aceita `set_auto`, `set_relay`, `set_timers`, `request_status` e `factory_reset`.

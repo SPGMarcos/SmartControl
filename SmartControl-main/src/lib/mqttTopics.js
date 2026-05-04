@@ -3,18 +3,26 @@ export const normalizeTopicPart = (value = '') =>
     .toString()
     .trim()
     .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9\-_]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
 export const buildMqttTopics = ({ client, project, deviceId, customTopic }) => {
   if (customTopic && typeof customTopic === 'string' && customTopic.trim()) {
-    const baseTopic = customTopic.trim().replace(/\/+$/, '');
+    const baseTopic = customTopic
+      .trim()
+      .replace(/\/+$/, '')
+      .replace(/\/(cmd|status|telemetry|config|heartbeat|ack|availability)$/i, '');
     return {
       root: baseTopic,
       command: `${baseTopic}/cmd`,
       status: `${baseTopic}/status`,
       telemetry: `${baseTopic}/telemetry`,
       config: `${baseTopic}/config`,
+      heartbeat: `${baseTopic}/heartbeat`,
+      ack: `${baseTopic}/ack`,
+      availability: `${baseTopic}/availability`,
     };
   }
 
@@ -29,6 +37,9 @@ export const buildMqttTopics = ({ client, project, deviceId, customTopic }) => {
     status: `${baseTopic}/status`,
     telemetry: `${baseTopic}/telemetry`,
     config: `${baseTopic}/config`,
+    heartbeat: `${baseTopic}/heartbeat`,
+    ack: `${baseTopic}/ack`,
+    availability: `${baseTopic}/availability`,
   };
 };
 
@@ -44,4 +55,19 @@ export const buildDeviceExternalId = ({ name, uniqueSuffix }) => {
   const normalizedName = normalizeTopicPart(name || 'smartdevice');
   const suffix = uniqueSuffix || Math.random().toString(36).slice(2, 6);
   return `${normalizedName}-${suffix}`;
+};
+
+export const buildPairingTopic = (pairingToken) => {
+  const tokenPart = normalizeTopicPart(pairingToken || 'pending');
+  return `smartcontrol/pairing/${tokenPart}/announce`;
+};
+
+export const SMARTCONTROL_MQTT_EVENTS = {
+  command: 'cmd',
+  status: 'status',
+  telemetry: 'telemetry',
+  heartbeat: 'heartbeat',
+  config: 'config',
+  ack: 'ack',
+  availability: 'availability',
 };

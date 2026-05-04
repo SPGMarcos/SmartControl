@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Droplets, Gauge, Lightbulb, Trash2, Zap } from 'lucide-react';
+import { Droplets, Gauge, Leaf, Lightbulb, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import ConfirmDialog from './ConfirmDialog';
@@ -19,6 +19,7 @@ const DeviceCard = ({ device, onToggle, onDelete, index = 0, showDelete }) => {
     light: Lightbulb,
     motor: Zap,
     sensor: Gauge,
+    hydroponics: Leaf,
   };
 
   const [confirmOpen, setConfirmOpen] = useState(false);
