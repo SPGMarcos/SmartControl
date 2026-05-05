@@ -82,6 +82,68 @@
     background: linear-gradient(135deg, rgba(75, 0, 130, 0.1) 0%, rgba(0, 0, 0, 0.3) 100%);
     backdrop-filter: blur(10px);
   }
+
+  /* Animações consistentes */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out;
+  }
+
+  /* Espaçamentos padronizados */
+  .section-spacing {
+    @apply space-y-6 lg:space-y-8;
+  }
+
+  .card-spacing {
+    @apply p-4 sm:p-6 lg:p-8;
+  }
+
+  .button-spacing {
+    @apply h-10 px-4 text-sm font-medium;
+  }
+
+  /* Estados de foco acessíveis */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-black;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @layer components {

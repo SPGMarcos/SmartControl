@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -37,9 +37,10 @@ const ProjectCard = ({ project, selected, onOpen, index }) => (
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: index * 0.08 }}
-    className={`gradient-card rounded-2xl border p-6 transition-all ${
+    className={`gradient-card rounded-2xl border p-6 transition-all cursor-pointer ${
       selected ? 'border-purple-400 shadow-lg shadow-purple-950/30' : 'border-purple-500/30 hover:border-purple-400/60'
     }`}
+    onClick={onOpen}
   >
     <div className="mb-5 flex items-start justify-between gap-4">
       <div>
@@ -173,6 +174,26 @@ const Dashboard = () => {
   const [sensors, setSensors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  const optimisticDevicesRef = useRef(new Map());
+
+  const mergeOptimisticDevices = (freshDevices = []) =>
+    freshDevices.map((device) => {
+      const optimisticDevice = optimisticDevicesRef.current.get(device.id);
+      if (!optimisticDevice) return device;
+
+      const remoteTime = new Date(device.last_heartbeat || device.updated_at || device.created_at || 0).getTime();
+      const optimisticTime = new Date(optimisticDevice.last_heartbeat || optimisticDevice.updated_at || 0).getTime();
+
+      if (Date.now() - optimisticTime > 12000 || remoteTime >= optimisticTime) {
+        optimisticDevicesRef.current.delete(device.id);
+        return device;
+      }
+
+      return {
+        ...device,
+        ...optimisticDevice,
+      };
+    });
 
   useEffect(() => {
     const fetchData = async ({ showLoader = false } = {}) => {
@@ -192,7 +213,7 @@ const Dashboard = () => {
         return;
       }
 
-      const safeDevices = devicesData || [];
+      const safeDevices = mergeOptimisticDevices(devicesData || []);
       setDevices(safeDevices);
 
       if (safeDevices.length > 0) {
@@ -241,7 +262,7 @@ const Dashboard = () => {
   }, [user]);
 
   const projects = useMemo(() => groupDevicesByProject(devices, sensors), [devices, sensors]);
-  const selectedProject = projects.find((project) => project.id === selectedProjectId) || projects[0];
+  const selectedProject = selectedProjectId ? projects.find((project) => project.id === selectedProjectId) : null;
   const displayName = getUserDisplayName(user);
   const onlineDevices = devices.filter(isDeviceOnline).length;
 
@@ -261,7 +282,31 @@ const Dashboard = () => {
   };
 
   const handleDeviceCommand = async (device, commandPayload) => {
+    const optimisticDevice = applyHydroponicsCommandState(device, commandPayload);
+    const hasOptimisticUpdate = optimisticDevice !== device;
+
+    if (hasOptimisticUpdate) {
+      optimisticDevicesRef.current.set(device.id, optimisticDevice);
+      setDevices((currentDevices) =>
+        currentDevices.map((currentDevice) =>
+          currentDevice.id === device.id ? optimisticDevice : currentDevice
+        )
+      );
+    }
+
+    const restoreDevice = () => {
+      optimisticDevicesRef.current.delete(device.id);
+      if (!hasOptimisticUpdate) return;
+
+      setDevices((currentDevices) =>
+        currentDevices.map((currentDevice) =>
+          currentDevice.id === device.id ? device : currentDevice
+        )
+      );
+    };
+
     if (!backendUrl) {
+      restoreDevice();
       toast({
         variant: 'destructive',
         title: 'Backend não configurado',
@@ -297,6 +342,7 @@ const Dashboard = () => {
     const payload = await response.json();
 
     if (!response.ok) {
+      restoreDevice();
       toast({
         variant: 'destructive',
         title: 'Falha ao enviar comando',
@@ -304,14 +350,6 @@ const Dashboard = () => {
       });
       return;
     }
-
-    setDevices((currentDevices) =>
-      currentDevices.map((currentDevice) =>
-        currentDevice.id === device.id
-          ? applyHydroponicsCommandState(currentDevice, commandPayload)
-          : currentDevice
-      )
-    );
 
     toast({
       title: commandPayload?.useConfigTopic ? 'ConfiguraÃ§Ã£o enviada' : 'Comando enviado',

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   Clock3,
@@ -55,6 +55,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
   });
   const [busyCommand, setBusyCommand] = useState('');
   const [nowTick, setNowTick] = useState(Date.now());
+  const busyCommandRef = useRef('');
 
   useEffect(() => {
     setTimerValues({
@@ -79,24 +80,65 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
   const stateAgeSeconds = state.lastSeen
     ? Math.max(0, Math.floor((nowTick - new Date(state.lastSeen).getTime()) / 1000))
     : 0;
-  const visibleRemaining = state.t24 ? Math.max(0, state.rem - stateAgeSeconds) : 0;
-  const timerLabel = state.t24 ? (state.v1 ? 'Bomba ativa' : 'Bomba em repouso') : 'Modo manual';
-  const timerTone = state.v1 ? 'text-green-300' : 'text-amber-300';
+  const automaticTimer = (() => {
+    if (!state.t24) {
+      return {
+        pumpActive: state.v1,
+        oxygenatorActive: state.v2,
+        remaining: 0,
+      };
+    }
+
+    let pumpActive = state.v1;
+    let remaining = Math.max(0, Number(state.rem) || 0) - stateAgeSeconds;
+    let guard = 0;
+
+    while (remaining <= 0 && guard < 8) {
+      pumpActive = !pumpActive;
+      const duration = Math.max(1, Number(pumpActive ? state.tOn : state.tOff) || 1) * 60;
+      remaining += duration;
+      guard += 1;
+    }
+
+    return {
+      pumpActive,
+      oxygenatorActive: true,
+      remaining: Math.max(0, remaining),
+    };
+  })();
+  const visibleRemaining = automaticTimer.remaining;
+  const displayPumpState = state.t24 ? automaticTimer.pumpActive : state.v1;
+  const displayOxygenatorState = state.t24 ? automaticTimer.oxygenatorActive : state.v2;
+  const timerLabel = state.t24 ? (displayPumpState ? 'Bomba ativa' : 'Bomba em repouso') : 'Modo manual';
+  const timerTone = displayPumpState ? 'text-green-300' : 'text-amber-300';
   const localDashboardUrl = getHydroponicsLocalUrl(device);
   const localSettingsUrl = getHydroponicsLocalUrl(device, '/settings');
+  const isManualControlsLocked = () =>
+    state.t24 || busyCommand === 'set_auto' || busyCommandRef.current === 'set_auto';
+  const manualControlsLocked = isManualControlsLocked();
 
   const sendCommand = async (command, payload = {}) => {
     if (!onCommand) return;
+    if (command === 'set_relay' && isManualControlsLocked()) return;
+
+    busyCommandRef.current = command;
     setBusyCommand(command);
-    await onCommand(buildHydroponicsCommand(command, payload));
-    setBusyCommand('');
+    try {
+      await onCommand(buildHydroponicsCommand(command, payload));
+    } finally {
+      busyCommandRef.current = '';
+      setBusyCommand('');
+    }
   };
 
   const sendConfig = async (payload = {}) => {
     if (!onConfig) return false;
     setBusyCommand('set_config');
-    await onConfig(payload);
-    setBusyCommand('');
+    try {
+      await onConfig(payload);
+    } finally {
+      setBusyCommand('');
+    }
     return true;
   };
 
@@ -147,9 +189,9 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
         </Button>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-3xl border border-purple-500/20 bg-black/30 p-5 sm:p-6">
-          <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-3xl border border-purple-500/20 bg-black/30 p-4 sm:p-6">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <span className="rounded-2xl border border-blue-400/30 bg-blue-500/10 p-3">
                 <Gauge className="h-6 w-6 text-blue-300" />
@@ -159,96 +201,109 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                 <p className="text-lg font-semibold text-white">Controle de fluxo</p>
               </div>
             </div>
-            <Switch
-              checked={state.t24}
-              onCheckedChange={(checked) => sendCommand('set_auto', { enabled: checked })}
-            />
-          </div>
-
-          <div className="mb-6 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <label className="text-xs uppercase tracking-[0.2em] text-gray-500" htmlFor={`ton-${device.id}`}>
-                Minutos ON
-              </label>
-              <Input
-                id={`ton-${device.id}`}
-                type="number"
-                min="1"
-                value={timerValues.tOn}
-                onChange={(event) => setTimerValues((current) => ({ ...current, tOn: event.target.value }))}
-                className="mt-3 bg-black/40 border-purple-500/30 text-white"
-              />
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <label className="text-xs uppercase tracking-[0.2em] text-gray-500" htmlFor={`toff-${device.id}`}>
-                Minutos OFF
-              </label>
-              <Input
-                id={`toff-${device.id}`}
-                type="number"
-                min="1"
-                value={timerValues.tOff}
-                onChange={(event) => setTimerValues((current) => ({ ...current, tOff: event.target.value }))}
-                className="mt-3 bg-black/40 border-purple-500/30 text-white"
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-400">Modo automático</span>
+              <Switch
+                checked={state.t24}
+                disabled={busyCommand === 'set_auto'}
+                onCheckedChange={(checked) => sendCommand('set_auto', { enabled: checked })}
+                className="scale-110"
               />
             </div>
           </div>
 
-          <div className="mb-6 rounded-3xl border border-blue-500/30 bg-blue-500/10 p-5 text-center">
-            <p className={`text-xs font-bold uppercase tracking-[0.25em] ${timerTone}`}>{timerLabel}</p>
-            <p className="mt-3 font-mono text-5xl font-bold text-white">{formatHydroponicsTimer(visibleRemaining)}</p>
-          </div>
+          {state.t24 && (
+            <>
+              <div className="mb-6 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <label className="text-sm font-medium text-gray-300" htmlFor={`ton-${device.id}`}>
+                    Minutos ON
+                  </label>
+                  <Input
+                    id={`ton-${device.id}`}
+                    type="number"
+                    min="1"
+                    value={timerValues.tOn}
+                    onChange={(event) => setTimerValues((current) => ({ ...current, tOn: event.target.value }))}
+                    className="mt-3 h-12 bg-black/40 border-purple-500/30 text-white text-lg"
+                  />
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <label className="text-sm font-medium text-gray-300" htmlFor={`toff-${device.id}`}>
+                    Minutos OFF
+                  </label>
+                  <Input
+                    id={`toff-${device.id}`}
+                    type="number"
+                    min="1"
+                    value={timerValues.tOff}
+                    onChange={(event) => setTimerValues((current) => ({ ...current, tOff: event.target.value }))}
+                    className="mt-3 h-12 bg-black/40 border-purple-500/30 text-white text-lg"
+                  />
+                </div>
+              </div>
 
-          <div className="space-y-4 border-t border-purple-500/20 pt-5">
-            <div className="flex items-center justify-between gap-4">
+              <div className="mb-6 rounded-3xl border border-blue-500/30 bg-blue-500/10 p-5 text-center">
+                <p className={`text-sm font-bold uppercase tracking-[0.25em] ${timerTone}`}>{timerLabel}</p>
+                <p className="mt-3 font-mono text-4xl sm:text-5xl font-bold text-white">{formatHydroponicsTimer(visibleRemaining)}</p>
+              </div>
+            </>
+          )}
+
+          <div className="space-y-6 border-t border-purple-500/20 pt-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <Droplets className="h-6 w-6 text-blue-300" />
                 <div>
                   <p className="font-semibold text-white">Bomba d'Água</p>
-                  <p className="text-xs text-gray-500">{state.t24 ? 'Controlada pelo temporizador' : 'Controle manual liberado'}</p>
+                  <p className="text-sm text-gray-500">{state.t24 ? 'Controlada pelo temporizador' : 'Controle manual liberado'}</p>
                 </div>
               </div>
               <Switch
-                checked={state.v1}
-                disabled={state.t24}
+                checked={displayPumpState}
+                disabled={manualControlsLocked}
                 onCheckedChange={(checked) => sendCommand('set_relay', { relay: 'pump', value: checked })}
+                className="scale-125"
               />
             </div>
 
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <Activity className="h-6 w-6 text-blue-300" />
                 <div>
                   <p className="font-semibold text-white">Oxigenador</p>
-                  <p className="text-xs text-gray-500">{state.t24 ? 'Mantido ligado no modo automático' : 'Controle manual liberado'}</p>
+                  <p className="text-sm text-gray-500">{state.t24 ? 'Mantido ligado no modo automático' : 'Controle manual liberado'}</p>
                 </div>
               </div>
               <Switch
-                checked={state.v2}
-                disabled={state.t24}
+                checked={displayOxygenatorState}
+                disabled={manualControlsLocked}
                 onCheckedChange={(checked) => sendCommand('set_relay', { relay: 'oxygenator', value: checked })}
+                className="scale-125"
               />
             </div>
           </div>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <Button
-              type="button"
-              onClick={handleTimerSave}
-              disabled={busyCommand === 'set_timers' || busyCommand === 'set_config'}
-              className="flex-1 bg-purple-600 hover:bg-purple-700"
-            >
-              <Clock3 className="mr-2 h-4 w-4" />
-              Salvar tempos
-            </Button>
+            {state.t24 && (
+              <Button
+                type="button"
+                onClick={handleTimerSave}
+                disabled={busyCommand === 'set_timers' || busyCommand === 'set_config'}
+                className="h-12 flex-1 bg-purple-600 hover:bg-purple-700 text-base font-semibold"
+              >
+                <Clock3 className="mr-2 h-5 w-5" />
+                Salvar tempos
+              </Button>
+            )}
             {localSettingsUrl && (
-              <a href={localSettingsUrl} target="_blank" rel="noreferrer" className="flex-1">
+              <a href={localSettingsUrl} target="_blank" rel="noreferrer" className={state.t24 ? 'flex-1' : 'w-full'}>
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white"
+                  className="h-12 w-full border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white text-base font-semibold"
                 >
-                  <Settings className="mr-2 h-4 w-4" />
+                  <Settings className="mr-2 h-5 w-5" />
                   Ajustes locais
                 </Button>
               </a>
@@ -297,7 +352,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                 type="button"
                 onClick={handleFactoryReset}
                 variant="outline"
-                className="mt-4 border-red-500/30 bg-black/30 text-red-200 hover:bg-red-500/10 hover:text-red-100"
+                className="h-12 mt-4 border-red-500/30 bg-black/30 text-red-200 hover:bg-red-500/10 hover:text-red-100 text-base font-semibold"
               >
                 Restaurar padrão de fábrica
               </Button>

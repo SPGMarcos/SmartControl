@@ -38,8 +38,13 @@ const Login = () => {
   const location = useLocation();
 
   useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const hashParams = new URLSearchParams(location.hash.replace('#', '?'));
+
     const isRecoveryLink =
-      location.search.includes('reset_password=true') || location.hash.includes('type=recovery');
+      urlParams.get('reset_password') === 'true' ||
+      hashParams.get('type') === 'recovery' ||
+      hashParams.get('access_token') !== null;
 
     if (isRecoveryLink) {
       setResetMode('update');

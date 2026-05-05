@@ -105,9 +105,9 @@ const DashboardLayout = ({ children }) => {
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-white lg:hidden"
+              className="text-white lg:hidden h-10 w-10"
             >
-              {sidebarOpen ? <X /> : <Menu />}
+              {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
             <span className="text-white font-bold text-xl hidden lg:block">
               SmartControl

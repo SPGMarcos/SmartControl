@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Layers, ShieldCheck, Wifi } from 'lucide-react';
+import { ArrowLeft, Edit3, Layers, Save, ShieldCheck, Wifi, X } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import HydroponicsDevicePanel from '@/components/HydroponicsDevicePanel';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
@@ -24,6 +24,14 @@ const DeviceDetail = () => {
   const [loading, setLoading] = useState(true);
   const [command, setCommand] = useState('request_status');
   const [sending, setSending] = useState(false);
+  const [editingConnection, setEditingConnection] = useState(false);
+  const [connectionData, setConnectionData] = useState({
+    device_id: '',
+    mac_address: '',
+    ip_address: '',
+    mqtt_topic: '',
+  });
+  const optimisticDeviceRef = useRef(null);
 
   const fetchDevice = async ({ showLoader = false } = {}) => {
     if (!user || !id) return;
@@ -45,7 +53,29 @@ const DeviceDetail = () => {
       return;
     }
 
-    setDevice(data);
+    const optimisticDevice = optimisticDeviceRef.current;
+    if (optimisticDevice) {
+      const remoteTime = new Date(data.last_heartbeat || data.updated_at || data.created_at || 0).getTime();
+      const optimisticTime = new Date(optimisticDevice.last_heartbeat || optimisticDevice.updated_at || 0).getTime();
+
+      if (Date.now() - optimisticTime > 12000 || remoteTime >= optimisticTime) {
+        optimisticDeviceRef.current = null;
+        setDevice(data);
+      } else {
+        setDevice({
+          ...data,
+          ...optimisticDevice,
+        });
+      }
+    } else {
+      setDevice(data);
+    }
+    setConnectionData({
+      device_id: data.device_id || '',
+      mac_address: data.mac_address || '',
+      ip_address: data.ip || '',
+      mqtt_topic: data.mqtt_topic || '',
+    });
     setLoading(false);
   };
 
@@ -63,7 +93,21 @@ const DeviceDetail = () => {
     if (!device) return;
     setSending(true);
 
+    const optimisticDevice = applyHydroponicsCommandState(device, commandPayload);
+    const hasOptimisticUpdate = optimisticDevice !== device;
+
+    if (hasOptimisticUpdate) {
+      optimisticDeviceRef.current = optimisticDevice;
+      setDevice(optimisticDevice);
+    }
+
+    const restoreDevice = () => {
+      optimisticDeviceRef.current = null;
+      if (hasOptimisticUpdate) setDevice(device);
+    };
+
     if (!backendUrl) {
+      restoreDevice();
       toast({
         variant: 'destructive',
         title: 'Backend não configurado',
@@ -99,6 +143,7 @@ const DeviceDetail = () => {
 
     const payload = await response.json();
     if (!response.ok) {
+      restoreDevice();
       toast({
         variant: 'destructive',
         title: 'Falha ao enviar comando',
@@ -107,10 +152,6 @@ const DeviceDetail = () => {
       setSending(false);
       return;
     }
-
-    setDevice((currentDevice) =>
-      currentDevice ? applyHydroponicsCommandState(currentDevice, commandPayload) : currentDevice
-    );
 
     toast({
       title: commandPayload?.useConfigTopic ? 'ConfiguraÃ§Ã£o enviada' : 'Comando enviado',
@@ -124,6 +165,49 @@ const DeviceDetail = () => {
   const handleSendCommand = async (event) => {
     event.preventDefault();
     await sendDeviceCommand({ command: command.trim() });
+  };
+
+  const handleSaveConnection = async () => {
+    if (!device) return;
+    setSending(true);
+
+    const { error } = await supabase
+      .from('devices')
+      .update({
+        device_id: connectionData.device_id || null,
+        mac_address: connectionData.mac_address || null,
+        ip: connectionData.ip_address || null,
+        mqtt_topic: connectionData.mqtt_topic || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', device.id);
+
+    setSending(false);
+
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar',
+        description: 'Não foi possível atualizar os dados de conexão.',
+      });
+    } else {
+      toast({
+        title: 'Dados atualizados',
+        description: 'As informações de conexão foram salvas com sucesso.',
+      });
+      setEditingConnection(false);
+      fetchDevice({ showLoader: false });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setConnectionData({
+      device_id: device?.device_id || '',
+      mac_address: device?.mac_address || '',
+      ip_address: device?.ip || '',
+      mqtt_topic: device?.mqtt_topic || '',
+    });
+    setEditingConnection(false);
   };
 
   if (loading || !device) {
@@ -185,23 +269,112 @@ const DeviceDetail = () => {
                 </div>
               </div>
 
-              <div className="mt-8 grid gap-4 md:grid-cols-2">
-                <div className="rounded-3xl border border-purple-500/20 bg-black/30 p-6">
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Modelo</p>
-                  <p className="mt-2 text-lg text-white">{getDeviceModelLabel(device)}</p>
+              <div className="mt-8 rounded-3xl border border-purple-500/20 bg-black/30 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Wifi className="w-4 h-4 text-purple-300" />
+                    <p className="text-sm uppercase tracking-[0.2em] text-gray-500">Dados de conexão</p>
+                  </div>
+                  {!editingConnection ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingConnection(true)}
+                      className="border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white"
+                    >
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Editar
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCancelEdit}
+                        className="border-gray-500/30 bg-black/30 text-gray-300 hover:bg-gray-600/20"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveConnection}
+                        disabled={sending}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {sending ? 'Salvando...' : 'Salvar'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <div className="rounded-3xl border border-purple-500/20 bg-black/30 p-6">
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Protocolo</p>
-                  <p className="mt-2 text-lg text-white">{getDeviceProtocolLabel(device)}</p>
-                </div>
-                <div className="rounded-3xl border border-purple-500/20 bg-black/30 p-6">
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">ID do dispositivo</p>
-                  <p className="mt-2 text-lg text-white">{device.device_id || buildDeviceExternalId({ name: device.name, uniqueSuffix: device.id.slice(0, 4) })}</p>
-                </div>
-                <div className="rounded-3xl border border-purple-500/20 bg-black/30 p-6">
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Token / API key</p>
-                  <p className="mt-2 text-sm text-gray-200 break-all">{device.device_token || 'Não configurado'}</p>
-                </div>
+
+                {!editingConnection ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-gray-500">ID do dispositivo</p>
+                      <p className="text-sm text-white">{connectionData.device_id || 'Não informado'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">MAC Address</p>
+                      <p className="text-sm text-white">{connectionData.mac_address || 'Não informado'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Endereço IP</p>
+                      <p className="text-sm text-white">{connectionData.ip_address || 'Não informado'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Tópico MQTT personalizado</p>
+                      <p className="text-sm text-white break-all">{connectionData.mqtt_topic || 'Padrão do sistema'}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="device_id" className="text-white">ID do dispositivo</Label>
+                      <Input
+                        id="device_id"
+                        value={connectionData.device_id}
+                        onChange={(e) => setConnectionData(prev => ({ ...prev, device_id: e.target.value }))}
+                        placeholder="Identificador único do dispositivo"
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Use MAC address ou ID único para identificação</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="mac_address" className="text-white">MAC Address</Label>
+                      <Input
+                        id="mac_address"
+                        value={connectionData.mac_address}
+                        onChange={(e) => setConnectionData(prev => ({ ...prev, mac_address: e.target.value }))}
+                        placeholder="AA:BB:CC:DD:EE:FF"
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="ip_address" className="text-white">Endereço IP</Label>
+                      <Input
+                        id="ip_address"
+                        value={connectionData.ip_address}
+                        onChange={(e) => setConnectionData(prev => ({ ...prev, ip_address: e.target.value }))}
+                        placeholder="192.168.1.100"
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Endereço IP local (não é identificador principal)</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="mqtt_topic" className="text-white">Tópico MQTT personalizado</Label>
+                      <Input
+                        id="mqtt_topic"
+                        value={connectionData.mqtt_topic}
+                        onChange={(e) => setConnectionData(prev => ({ ...prev, mqtt_topic: e.target.value }))}
+                        placeholder="smartcontrol/meu-topico"
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Deixe vazio para usar tópico padrão</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="mt-8 rounded-3xl border border-purple-500/20 bg-black/30 p-6">

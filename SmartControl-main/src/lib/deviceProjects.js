@@ -128,15 +128,26 @@ export const getDeviceProtocolLabel = (device) => {
 };
 
 export const isDeviceOnline = (device) => {
-  const rawStatus = device?.connection_status || device?.online_status;
   const lastHeartbeat = device?.last_heartbeat ? new Date(device.last_heartbeat).getTime() : null;
-  const heartbeatIsFresh = lastHeartbeat ? Date.now() - lastHeartbeat < 2 * 60 * 1000 : true;
+  const heartbeatIsFresh = lastHeartbeat ? Date.now() - lastHeartbeat < 2 * 60 * 1000 : false;
 
-  if (typeof rawStatus === 'string') {
-    return rawStatus.toLowerCase() === 'online' && heartbeatIsFresh;
+  // Priorizar heartbeat fresco sobre outros indicadores
+  if (heartbeatIsFresh) {
+    return true;
   }
-  if (typeof device?.online === 'boolean') return device.online;
 
+  // Verificar status explícito de conexão
+  const rawStatus = device?.connection_status || device?.online_status;
+  if (typeof rawStatus === 'string') {
+    return rawStatus.toLowerCase() === 'online';
+  }
+
+  // Verificar campo online booleano
+  if (typeof device?.online === 'boolean') {
+    return device.online;
+  }
+
+  // Fallback para status (menos confiável)
   return Boolean(device?.status);
 };
 
