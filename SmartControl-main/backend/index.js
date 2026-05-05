@@ -93,6 +93,23 @@ const statusTopics = MQTT_STATUS_TOPICS
   ? MQTT_STATUS_TOPICS.split(',').map((topic) => topic.trim()).filter(Boolean)
   : defaultStatusTopics;
 
+// Mapa para armazenar dispositivos descobertos (nao registrados)
+const discoveredDevices = new Map();
+const DISCOVERY_TIMEOUT = 24 * 60 * 60 * 1000; // 24 horas
+const realtimeClients = new Set();
+
+const sendRealtimeEvent = (event) => {
+  const payload = `event: ${event.type || 'message'}\ndata: ${JSON.stringify(event)}\n\n`;
+
+  realtimeClients.forEach((client) => {
+    try {
+      client.write(payload);
+    } catch {
+      realtimeClients.delete(client);
+    }
+  });
+};
+
 const mqttClient = mqtt.connect(MQTT_URL, {
   username: MQTT_USERNAME,
   password: MQTT_PASSWORD,
@@ -271,6 +288,32 @@ const handleMqttMessage = async (topic, message) => {
   const device = await findDeviceByIdentity(identity);
 
   if (!device) {
+    // Armazenar dispositivo nao registrado para descoberta
+    if ((eventType === 'heartbeat' || eventType === 'status' || eventType === 'announce') && payload.device_id) {
+      const discoveryKey = payload.device_id || payload.mac_address || topic;
+      discoveredDevices.set(discoveryKey, {
+        device_id: payload.device_id,
+        mac_address: payload.mac_address || payload.mac,
+        ip: payload.ip,
+        mdns: payload.mdns,
+        firmware_version: payload.firmware_version,
+        hardware_version: payload.hardware_version,
+        module: payload.module,
+        topic_root: identity.topicRoot,
+        discovered_at: new Date().toISOString(),
+        full_payload: payload,
+      });
+
+      sendRealtimeEvent({
+        type: 'device_discovered',
+        device_id: payload.device_id,
+        mac_address: payload.mac_address || payload.mac,
+        topic,
+        topic_root: identity.topicRoot,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
     await logEvent({
       type: eventType === 'announce' ? 'device_pairing_announce' : 'mqtt_unmatched_message',
       payload: { topic, payload, identity },
@@ -293,6 +336,24 @@ const handleMqttMessage = async (topic, message) => {
   const availabilityOffline =
     eventType === 'availability' &&
     ['offline', 'false', '0'].includes(String(availabilityValue || '').toLowerCase());
+  const previousLastState = parseJsonField(device.last_state);
+  const previousTelemetry = parseJsonField(device.telemetry);
+  const replacesDeviceState = ['status', 'telemetry', 'heartbeat'].includes(eventType);
+  const nextLastState = replacesDeviceState
+    ? payload
+    : {
+        ...previousLastState,
+        online: !availabilityOffline,
+        last_ack: eventType === 'ack' ? payload : previousLastState.last_ack,
+        last_availability: eventType === 'availability' ? payload : previousLastState.last_availability,
+      };
+  const nextTelemetry = replacesDeviceState
+    ? payload
+    : {
+        ...previousTelemetry,
+        last_ack: eventType === 'ack' ? payload : previousTelemetry.last_ack,
+        last_availability: eventType === 'availability' ? payload : previousTelemetry.last_availability,
+      };
 
   const pumpState = maybeBoolean(payload.v1 ?? payload.relays?.pump ?? payload.pump);
   const nextConfiguration =
@@ -308,8 +369,8 @@ const handleMqttMessage = async (topic, message) => {
     connection_status: availabilityOffline ? 'offline' : 'online',
     online: !availabilityOffline,
     last_heartbeat: now,
-    last_state: payload,
-    telemetry: payload,
+    last_state: nextLastState,
+    telemetry: nextTelemetry,
   };
 
   if (pumpState !== null) updatePayload.status = pumpState;
@@ -325,6 +386,17 @@ const handleMqttMessage = async (topic, message) => {
   }
 
   await safeUpdateDevice(device.id, updatePayload);
+
+  sendRealtimeEvent({
+    type: 'device_state',
+    device_id: device.id,
+    external_device_id: device.device_id || identity.deviceId,
+    user_id: device.user_id,
+    event_type: eventType,
+    topic,
+    payload,
+    updated_at: now,
+  });
 
   await logEvent({
     deviceId: device.id,
@@ -440,7 +512,18 @@ const normalizeCommand = ({ command, payload = {}, module }, device) => {
     return { ...validated, module: 'heltec_esp32_lora_hydroponics' };
   }
 
-  const genericCommands = ['toggle', 'on', 'off', 'status', 'request_status'];
+  const genericCommands = [
+    'toggle',
+    'on',
+    'off',
+    'status',
+    'request_status',
+    'open',
+    'close',
+    'start_zone',
+    'stop_zone',
+    'set_schedule',
+  ];
   if (!genericCommands.includes(normalizedCommand)) {
     throw new Error('Comando generico nao permitido.');
   }
@@ -601,11 +684,38 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   return res.json({
     status: 'ok',
-    version: '1.2.1',
+    version: '1.3.0',
     mqtt_connected: mqttClient.connected,
     subscribed_topics: statusTopics,
     auth_required: requireAuth,
     device_token_required: requireDeviceToken,
+  });
+});
+
+app.get('/api/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  res.write(`event: connected\ndata: ${JSON.stringify({
+    type: 'connected',
+    mqtt_connected: mqttClient.connected,
+    updated_at: new Date().toISOString(),
+  })}\n\n`);
+
+  realtimeClients.add(res);
+
+  const keepAlive = setInterval(() => {
+    res.write(`event: ping\ndata: ${JSON.stringify({
+      type: 'ping',
+      updated_at: new Date().toISOString(),
+    })}\n\n`);
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    realtimeClients.delete(res);
   });
 });
 
@@ -718,6 +828,19 @@ app.post('/api/devices/:id/request-status', async (req, res) => {
   } catch (error) {
     return res.status(error.statusCode || 400).json({ error: error.message });
   }
+});
+
+app.get('/api/discover/devices', (req, res) => {
+  const devices = Array.from(discoveredDevices.values());
+  return res.json({ devices, count: devices.length });
+});
+
+app.get('/api/discover/devices/:deviceId', (req, res) => {
+  const device = discoveredDevices.get(req.params.deviceId);
+  if (!device) {
+    return res.status(404).json({ error: 'Dispositivo nao encontrado' });
+  }
+  return res.json(device);
 });
 
 app.listen(PORT, () => {

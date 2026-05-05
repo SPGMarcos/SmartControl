@@ -127,6 +127,8 @@ const Login = () => {
 
     if (!error) {
       setResetSent(true);
+    } else {
+      setResetError('Nao foi possivel enviar o link agora. Verifique o email e tente novamente.');
     }
   };
 
@@ -155,6 +157,8 @@ const Login = () => {
       setNewPassword('');
       setConfirmPassword('');
       navigate('/dashboard');
+    } else {
+      setResetError('Nao foi possivel salvar a nova senha. Abra novamente o link recebido e tente outra vez.');
     }
   };
 

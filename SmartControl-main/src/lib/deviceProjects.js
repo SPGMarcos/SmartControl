@@ -39,6 +39,11 @@ const DEFAULT_PROJECTS = {
     type: 'home',
     description: 'Automação residencial, conforto, segurança e rotina.',
   },
+  gate: {
+    name: 'Controle de portao',
+    type: 'gate',
+    description: 'Portoes, travas, sensores de abertura e acionamentos de acesso.',
+  },
 };
 
 export const projectTemplates = [
@@ -51,6 +56,7 @@ export const projectTemplates = [
   DEFAULT_PROJECTS.greenhouse,
   DEFAULT_PROJECTS.hydroponics,
   DEFAULT_PROJECTS.pump,
+  DEFAULT_PROJECTS.gate,
   DEFAULT_PROJECTS.lighting,
   DEFAULT_PROJECTS.garden,
   DEFAULT_PROJECTS.agriculture,
@@ -65,6 +71,8 @@ export const deviceModelOptions = [
   { value: 'heltec_esp32_lora_hydroponics', label: 'Heltec ESP32 LoRa - Hidroponia SmartControl' },
   { value: 'relay_module', label: 'Módulo de relé' },
   { value: 'sensor_module', label: 'Módulo de sensor' },
+  { value: 'gate_controller', label: 'Controle de portao ESP32/ESP8266' },
+  { value: 'irrigation_controller', label: 'Painel de irrigacao ESP32/ESP8266' },
   { value: 'custom', label: 'Dispositivo SmartControl personalizado' },
 ];
 
@@ -105,6 +113,7 @@ export const getDeviceProjectName = (device) => {
   if (text.includes('estufa') || text.includes('greenhouse')) return DEFAULT_PROJECTS.greenhouse.name;
   if (text.includes('horta')) return 'Horta urbana';
   if (text.includes('bomba') || text.includes('motor') || text.includes('poco') || text.includes('poço')) return DEFAULT_PROJECTS.pump.name;
+  if (text.includes('portao') || text.includes('gate')) return DEFAULT_PROJECTS.gate.name;
   if (text.includes('luz') || text.includes('ilumin') || text.includes('light')) return DEFAULT_PROJECTS.lighting.name;
   if (text.includes('piscina') || text.includes('jardim')) return DEFAULT_PROJECTS.garden.name;
   if (text.includes('agro') || text.includes('fazenda') || text.includes('lora')) return DEFAULT_PROJECTS.agriculture.name;
@@ -129,26 +138,19 @@ export const getDeviceProtocolLabel = (device) => {
 
 export const isDeviceOnline = (device) => {
   const lastHeartbeat = device?.last_heartbeat ? new Date(device.last_heartbeat).getTime() : null;
-  const heartbeatIsFresh = lastHeartbeat ? Date.now() - lastHeartbeat < 2 * 60 * 1000 : false;
-
-  // Priorizar heartbeat fresco sobre outros indicadores
-  if (heartbeatIsFresh) {
-    return true;
-  }
-
-  // Verificar status explícito de conexão
+  const heartbeatIsFresh = lastHeartbeat ? Date.now() - lastHeartbeat < 90 * 1000 : false;
   const rawStatus = device?.connection_status || device?.online_status;
+
   if (typeof rawStatus === 'string') {
-    return rawStatus.toLowerCase() === 'online';
+    const normalized = rawStatus.toLowerCase();
+    if (normalized === 'offline') return false;
+
+    // "online" sem heartbeat fresco vira offline visualmente. Isso evita status preso
+    // quando o dispositivo cai sem publicar availability/offline.
+    if (normalized === 'online') return heartbeatIsFresh;
   }
 
-  // Verificar campo online booleano
-  if (typeof device?.online === 'boolean') {
-    return device.online;
-  }
-
-  // Fallback para status (menos confiável)
-  return Boolean(device?.status);
+  return heartbeatIsFresh;
 };
 
 export const getLastConnection = (device) => {

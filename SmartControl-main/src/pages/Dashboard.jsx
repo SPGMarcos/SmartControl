@@ -13,6 +13,7 @@ import { supabase } from '@/lib/customSupabaseClient';
 import { getUserDisplayName, groupDevicesByProject, isDeviceOnline } from '@/lib/deviceProjects';
 import { applyHydroponicsCommandState, buildHydroponicsMqttTopics, isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
 import { backendUrl } from '@/lib/backend';
+import { subscribeBackendEvents } from '@/lib/realtimeEvents';
 import { toast } from '@/components/ui/use-toast';
 
 const StatCard = ({ icon: Icon, label, value, accent = 'text-purple-400', delay = 0 }) => (
@@ -45,7 +46,13 @@ const ProjectCard = ({ project, selected, onOpen, index }) => (
     <div className="mb-5 flex items-start justify-between gap-4">
       <div>
         <p className="text-sm uppercase tracking-[0.2em] text-purple-300">Projeto</p>
-        <h3 className="mt-2 text-2xl font-bold text-white">{project.name}</h3>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="mt-2 block text-left text-2xl font-bold text-white transition hover:text-purple-200"
+        >
+          {project.name}
+        </button>
         <p className="mt-2 text-sm leading-6 text-gray-400">{project.description}</p>
       </div>
       <div className="rounded-2xl border border-purple-400/30 bg-purple-500/10 p-3">
@@ -181,10 +188,9 @@ const Dashboard = () => {
       const optimisticDevice = optimisticDevicesRef.current.get(device.id);
       if (!optimisticDevice) return device;
 
-      const remoteTime = new Date(device.last_heartbeat || device.updated_at || device.created_at || 0).getTime();
       const optimisticTime = new Date(optimisticDevice.last_heartbeat || optimisticDevice.updated_at || 0).getTime();
 
-      if (Date.now() - optimisticTime > 12000 || remoteTime >= optimisticTime) {
+      if (Date.now() - optimisticTime > 6000) {
         optimisticDevicesRef.current.delete(device.id);
         return device;
       }
@@ -254,10 +260,20 @@ const Dashboard = () => {
       })
       .subscribe();
 
+    const unsubscribeBackendEvents = subscribeBackendEvents({
+      onDeviceState: (event) => {
+        if (!event.user_id || event.user_id === user.id) fetchData();
+      },
+      onDeviceDiscovered: () => {
+        fetchData();
+      },
+    });
+
     return () => {
       window.clearInterval(polling);
       supabase.removeChannel(deviceSub);
       supabase.removeChannel(sensorSub);
+      unsubscribeBackendEvents();
     };
   }, [user]);
 
@@ -425,6 +441,15 @@ const Dashboard = () => {
                   ))}
                 </div>
               </section>
+
+              {!selectedProject && (
+                <section className="rounded-2xl border border-purple-500/30 bg-black/30 p-6 text-gray-300">
+                  <h2 className="text-xl font-bold text-white">Escolha um projeto para abrir a dashboard</h2>
+                  <p className="mt-2 text-sm leading-6 text-gray-400">
+                    A visao inicial fica limpa. Clique no nome do projeto ou em Abrir dashboard do projeto para carregar o painel completo.
+                  </p>
+                </section>
+              )}
 
               {selectedProject && (
                 <ProjectDashboard

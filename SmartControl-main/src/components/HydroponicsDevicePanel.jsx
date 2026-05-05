@@ -76,7 +76,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
     return () => window.clearInterval(timer);
   }, [state.t24, state.rem, state.lastSeen]);
 
-  const online = isDeviceOnline(device) || state.online;
+  const online = isDeviceOnline(device);
   const stateAgeSeconds = state.lastSeen
     ? Math.max(0, Math.floor((nowTick - new Date(state.lastSeen).getTime()) / 1000))
     : 0;
@@ -114,7 +114,11 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
   const localDashboardUrl = getHydroponicsLocalUrl(device);
   const localSettingsUrl = getHydroponicsLocalUrl(device, '/settings');
   const isManualControlsLocked = () =>
-    state.t24 || busyCommand === 'set_auto' || busyCommandRef.current === 'set_auto';
+    state.t24 ||
+    busyCommand === 'set_auto' ||
+    busyCommand === 'set_relay' ||
+    busyCommandRef.current === 'set_auto' ||
+    busyCommandRef.current === 'set_relay';
   const manualControlsLocked = isManualControlsLocked();
 
   const sendCommand = async (command, payload = {}) => {

@@ -24,13 +24,15 @@ const getPasswordResetRedirectUrl = () => {
     return undefined;
   }
 
-  // Use public app URL for production, fallback to current origin for development
   const publicUrl = import.meta.env.VITE_PUBLIC_APP_URL;
+  if (publicUrl) {
+    return `${publicUrl.replace(/\/+$/, '')}/login?reset_password=true`;
+  }
+
   const basePath = import.meta.env.BASE_URL || '/';
   const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
 
-  const baseUrl = publicUrl || window.location.origin;
-  return `${baseUrl}${normalizedBasePath}login?reset_password=true`;
+  return `${window.location.origin}${normalizedBasePath}login?reset_password=true`;
 };
 
 const shouldRetryPasswordResetWithoutRedirect = (error) => {

@@ -103,7 +103,7 @@ export const normalizeHydroponicsState = (device = {}) => {
   return {
     moduleType: HYDROPONICS_MODULE_TYPE,
     online: toBoolean(device.connection_status, false) || toBoolean(state.online, false),
-    t24: toBoolean(state.t24 ?? state.automatic ?? state.auto ?? state.mode?.automatic, true),
+    t24: toBoolean(state.t24 ?? state.automatic ?? state.auto ?? state.mode?.automatic, false),
     v1: toBoolean(state.v1 ?? relays.pump ?? state.pump, Boolean(device.status)),
     v2: toBoolean(state.v2 ?? relays.oxygenator ?? state.oxygenator, true),
     rem: toNumber(state.rem ?? state.remaining_seconds ?? timers.remainingSeconds, 0),
@@ -165,6 +165,8 @@ export const applyHydroponicsCommandState = (device = {}, commandPayload = {}) =
   }
 
   if (command === 'set_relay') {
+    patch.t24 = false;
+    patch.rem = 0;
     if (payload.relay === 'pump') patch.v1 = toBoolean(payload.value, current.v1);
     if (payload.relay === 'oxygenator') patch.v2 = toBoolean(payload.value, current.v2);
   }

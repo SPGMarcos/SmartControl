@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
-import { Cpu, Plus, ShieldCheck } from 'lucide-react';
+import { Cpu, Plus, ShieldCheck, Search, Check } from 'lucide-react';
 import { deviceModelOptions, projectTemplates, protocolOptions } from '@/lib/deviceProjects';
 import { buildDeviceExternalId, buildMqttTopics, generateDeviceToken } from '@/lib/mqttTopics';
 import {
@@ -19,6 +19,8 @@ import {
   HYDROPONICS_MODULE_TYPE,
 } from '@/lib/hydroponicsHeltec';
 import { sanitizeText } from '@/lib/security';
+import { discoverDevices, mapDiscoveredDataToForm } from '@/lib/deviceDiscovery';
+import { deviceKindTemplates, getDeviceKindTemplate } from '@/lib/deviceTemplates';
 
 const AddDevice = () => {
   const { user } = useAuth();
@@ -39,14 +41,56 @@ const AddDevice = () => {
     mdnsHostname: '',
     deviceToken: generateDeviceToken(),
   });
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [discoveredDevicesList, setDiscoveredDevicesList] = useState([]);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [showDiscoveredDevices, setShowDiscoveredDevices] = useState(false);
+  const [selectedDiscoveredDevice, setSelectedDiscoveredDevice] = useState(null);
 
-  const deviceTypes = [
-    { value: 'relay', label: 'Relé / Válvula' },
-    { value: 'light', label: 'Iluminação' },
-    { value: 'motor', label: 'Motor / Bomba' },
-    { value: 'sensor', label: 'Sensor' },
-    { value: HYDROPONICS_DEVICE_TYPE, label: 'Hidroponia inteligente' },
-  ];
+  const handleDiscoverDevices = async () => {
+    setIsDiscovering(true);
+    try {
+      const devices = await discoverDevices();
+      setDiscoveredDevicesList(devices);
+      setShowDiscoveredDevices(true);
+
+      if (devices.length === 0) {
+        toast({
+          title: 'Nenhum dispositivo descoberto',
+          description: 'Certifique-se de que o ESP está conectado ao MQTT e enviando heartbeat.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: `${devices.length} dispositivo(s) descoberto(s)!`,
+          description: 'Selecione um para preencher automaticamente o formulário.',
+        });
+      }
+    } catch (error) {
+      console.error('Erro na descoberta:', error);
+      toast({
+        title: 'Erro na descoberta',
+        description: 'Não foi possível buscar dispositivos descobertos.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
+  const handleSelectDiscoveredDevice = (device) => {
+    const mappedData = mapDiscoveredDataToForm(device);
+    setFormData((current) => ({
+      ...current,
+      ...mappedData,
+    }));
+    setSelectedDiscoveredDevice(device.device_id);
+    setShowDiscoveredDevices(false);
+    toast({
+      title: 'Dispositivo selecionado!',
+      description: `Os dados de "${device.device_id}" foram carregados automaticamente.`,
+    });
+  };
 
   const shouldRetryWithoutNewColumns = (error) => {
     const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
@@ -60,6 +104,7 @@ const AddDevice = () => {
     const safeProjectName = sanitizeText(formData.projectName, 80);
     const safeMqttTopic = sanitizeText(formData.mqttTopic, 120);
     const selectedProject = projectTemplates.find((project) => project.name === safeProjectName);
+    const selectedDeviceTemplate = getDeviceKindTemplate(formData.type);
 
     if (!safeName) {
       toast({
@@ -113,6 +158,8 @@ const AddDevice = () => {
       mdns_hostname: safeMdnsHostname,
       capabilities: isHydroponicsModule ? HYDROPONICS_CAPABILITIES : {},
       configuration: {
+        dashboard_template: selectedDeviceTemplate.dashboard,
+        allowed_commands: selectedDeviceTemplate.commands,
         mqtt_topics: topics,
         local_dashboard: safeLocalIp || safeMdnsHostname || null,
         pairing: {
@@ -122,8 +169,8 @@ const AddDevice = () => {
       },
       last_state: isHydroponicsModule
         ? {
-            t24: true,
-            v1: true,
+            t24: false,
+            v1: false,
             v2: true,
             tOn: 10,
             tOff: 10,
@@ -221,11 +268,57 @@ const AddDevice = () => {
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">Adicionar Dispositivo</h1>
               <p className="text-gray-400">
-                Vincule ESP32, ESP8266, ESP-01, LoRa, relés, sensores e módulos personalizados a um projeto.
+                Apenas os dados essenciais são necessários para cadastrar o dispositivo. O restante é gerado automaticamente pelo backend e pela firmware.
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="gradient-card p-8 rounded-xl border border-purple-500/30 space-y-6">
+              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-6">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Descoberta automática de dispositivos</h3>
+                    <p className="text-sm text-gray-400 mt-1">Se seu ESP está conectado ao MQTT, clique para descobri-lo automaticamente.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleDiscoverDevices}
+                    disabled={isDiscovering}
+                    className="whitespace-nowrap bg-blue-600 hover:bg-blue-700 shrink-0"
+                  >
+                    <Search className="w-4 h-4 mr-2" />
+                    {isDiscovering ? 'Buscando...' : 'Descobrir agora'}
+                  </Button>
+                </div>
+
+                {showDiscoveredDevices && discoveredDevicesList.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-sm text-gray-400">Dispositivos disponíveis:</p>
+                    {discoveredDevicesList.map((device) => (
+                      <motion.button
+                        key={device.device_id}
+                        type="button"
+                        onClick={() => handleSelectDiscoveredDevice(device)}
+                        className={`w-full text-left p-3 rounded-lg border transition-all ${
+                          selectedDiscoveredDevice === device.device_id
+                            ? 'border-blue-400 bg-blue-500/20'
+                            : 'border-gray-600 bg-black/30 hover:border-blue-500/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-white font-medium">{device.device_id}</p>
+                            <p className="text-xs text-gray-400">{device.ip} • {device.mac_address}</p>
+                          </div>
+                          {selectedDiscoveredDevice === device.device_id && (
+                            <Check className="w-5 h-5 text-blue-400" />
+                          )}
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="grid gap-6 md:grid-cols-2">
                 <div>
                   <Label htmlFor="name" className="text-white">Nome do Dispositivo</Label>
@@ -268,7 +361,7 @@ const AddDevice = () => {
                     onChange={handleChange}
                     className="mt-2 w-full bg-black/50 border border-purple-500/30 text-white rounded-md px-3 py-2"
                   >
-                    {deviceTypes.map((type) => (
+                    {deviceKindTemplates.map((type) => (
                       <option key={type.value} value={type.value}>
                         {type.label}
                       </option>
@@ -276,191 +369,177 @@ const AddDevice = () => {
                   </select>
                 </div>
 
-                <div>
-                  <Label htmlFor="deviceModel" className="text-white">Hardware físico</Label>
-                  <select
-                    id="deviceModel"
-                    name="deviceModel"
-                    value={formData.deviceModel}
-                    onChange={handleChange}
-                    className="mt-2 w-full bg-black/50 border border-purple-500/30 text-white rounded-md px-3 py-2"
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvanced((current) => !current)}
+                    className="text-left text-sm font-medium text-purple-300 hover:text-purple-100 transition"
                   >
-                    {deviceModelOptions.map((model) => (
-                      <option key={model.value} value={model.value}>
-                        {model.label}
-                      </option>
-                    ))}
-                  </select>
+                    {showAdvanced ? 'Ocultar opções avançadas' : 'Mostrar opções avançadas'}
+                  </button>
                 </div>
               </div>
 
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="deviceId" className="text-white">ID do Dispositivo</Label>
-                  <Input
-                    id="deviceId"
-                    name="deviceId"
-                    value={formData.deviceId}
-                    onChange={handleChange}
-                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
-                    placeholder="Ex: bomba-poço-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="macAddress" className="text-white">MAC Address</Label>
-                  <Input
-                    id="macAddress"
-                    name="macAddress"
-                    value={formData.macAddress}
-                    onChange={handleChange}
-                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
-                    placeholder="Ex: AA:BB:CC:DD:EE:FF"
-                  />
-                </div>
-              </div>
+              {showAdvanced && (
+                <div className="space-y-6 rounded-2xl border border-purple-500/20 bg-black/30 p-6">
+                  <p className="text-sm text-gray-400">
+                    Estas informações são opcionais. Se você estiver usando firmware e backend SmartControl recentes, elas serão preenchidas automaticamente.
+                  </p>
 
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="firmwareVersion" className="text-white">Firmware</Label>
-                  <Input
-                    id="firmwareVersion"
-                    name="firmwareVersion"
-                    value={formData.firmwareVersion}
-                    onChange={handleChange}
-                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
-                    placeholder="Ex: v1.0.0"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="hardwareVersion" className="text-white">Versão do Hardware</Label>
-                  <Input
-                    id="hardwareVersion"
-                    name="hardwareVersion"
-                    value={formData.hardwareVersion}
-                    onChange={handleChange}
-                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
-                    placeholder="Ex: ESP32 DevKit v4"
-                  />
-                </div>
-              </div>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="deviceModel" className="text-white">Hardware físico</Label>
+                      <select
+                        id="deviceModel"
+                        name="deviceModel"
+                        value={formData.deviceModel}
+                        onChange={handleChange}
+                        className="mt-2 w-full bg-black/50 border border-purple-500/30 text-white rounded-md px-3 py-2"
+                      >
+                        {deviceModelOptions.map((model) => (
+                          <option key={model.value} value={model.value}>
+                            {model.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="mqttBroker" className="text-white">Broker MQTT</Label>
-                  <Input
-                    id="mqttBroker"
-                    name="mqttBroker"
-                    value={formData.mqttBroker}
-                    onChange={handleChange}
-                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
-                    placeholder="wss://broker.emqx.io:8084/mqtt"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="mqttTopic" className="text-white">Tópico MQTT</Label>
-                  <Input
-                    id="mqttTopic"
-                    name="mqttTopic"
-                    value={formData.mqttTopic}
-                    onChange={handleChange}
-                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
-                    placeholder="smartcontrol/cliente/projeto/dispositivo"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="localIp" className="text-white">IP local</Label>
-                  <Input
-                    id="localIp"
-                    name="localIp"
-                    value={formData.localIp}
-                    onChange={handleChange}
-                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
-                    placeholder="Ex: 192.168.1.80"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="mdnsHostname" className="text-white">mDNS local</Label>
-                  <Input
-                    id="mdnsHostname"
-                    name="mdnsHostname"
-                    value={formData.mdnsHostname}
-                    onChange={handleChange}
-                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
-                    placeholder="smarthidroponia.local"
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-purple-500/20 bg-black/30 p-4">
-                <Label htmlFor="deviceToken" className="text-white">Token do Dispositivo</Label>
-                <Input
-                  id="deviceToken"
-                  name="deviceToken"
-                  value={formData.deviceToken}
-                  readOnly
-                  className="mt-2 bg-black/40 border-purple-500/30 text-white"
-                />
-              </div>
-
-              <div className="rounded-xl border border-purple-500/20 bg-black/30 p-4">
-                <p className="text-sm font-semibold text-white">Tópicos MQTT gerados</p>
-                <div className="mt-3 grid gap-3 text-sm text-gray-300">
-                  <p className="break-all"><span className="text-gray-500">CMD:</span> {topicPreview.command}</p>
-                  <p className="break-all"><span className="text-gray-500">STATUS:</span> {topicPreview.status}</p>
-                  <p className="break-all"><span className="text-gray-500">HEARTBEAT:</span> {topicPreview.heartbeat}</p>
-                </div>
-              </div>
-
-              <div className="border-t border-purple-500/30 pt-6">
-                <div className="mb-5 flex items-center gap-3">
-                  <span className="rounded-xl border border-purple-400/30 bg-purple-500/10 p-3">
-                    <Cpu className="h-5 w-5 text-purple-300" />
-                  </span>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">Integração e comunicação</h3>
-                    <p className="text-sm text-gray-400">Base preparada para MQTT, ESPHome, API local, Home Assistant e LoRa.</p>
-                  </div>
-                </div>
-
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div>
-                    <Label htmlFor="protocol" className="text-white">Protocolo principal</Label>
-                    <select
-                      id="protocol"
-                      name="protocol"
-                      value={formData.protocol}
-                      onChange={handleChange}
-                      className="mt-2 w-full bg-black/50 border border-purple-500/30 text-white rounded-md px-3 py-2"
-                    >
-                      {protocolOptions.map((protocol) => (
-                        <option key={protocol.value} value={protocol.value}>
-                          {protocol.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div>
+                      <Label htmlFor="protocol" className="text-white">Protocolo principal</Label>
+                      <select
+                        id="protocol"
+                        name="protocol"
+                        value={formData.protocol}
+                        onChange={handleChange}
+                        className="mt-2 w-full bg-black/50 border border-purple-500/30 text-white rounded-md px-3 py-2"
+                      >
+                        {protocolOptions.map((protocol) => (
+                          <option key={protocol.value} value={protocol.value}>
+                            {protocol.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  <div>
-                    <Label htmlFor="mqttCommandTopicPreview" className="text-white">Tópico final de comando</Label>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="deviceId" className="text-white">ID do Dispositivo</Label>
+                      <Input
+                        id="deviceId"
+                        name="deviceId"
+                        value={formData.deviceId}
+                        onChange={handleChange}
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        placeholder="Se vazio, será gerado automaticamente"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="macAddress" className="text-white">MAC Address</Label>
+                      <Input
+                        id="macAddress"
+                        name="macAddress"
+                        value={formData.macAddress}
+                        onChange={handleChange}
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="firmwareVersion" className="text-white">Firmware</Label>
+                      <Input
+                        id="firmwareVersion"
+                        name="firmwareVersion"
+                        value={formData.firmwareVersion}
+                        onChange={handleChange}
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        placeholder="Ex: v1.0.0"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="hardwareVersion" className="text-white">Versão do Hardware</Label>
+                      <Input
+                        id="hardwareVersion"
+                        name="hardwareVersion"
+                        value={formData.hardwareVersion}
+                        onChange={handleChange}
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="mqttBroker" className="text-white">Broker MQTT</Label>
+                      <Input
+                        id="mqttBroker"
+                        name="mqttBroker"
+                        value={formData.mqttBroker}
+                        onChange={handleChange}
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="mqttTopic" className="text-white">Tópico MQTT</Label>
+                      <Input
+                        id="mqttTopic"
+                        name="mqttTopic"
+                        value={formData.mqttTopic}
+                        onChange={handleChange}
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="localIp" className="text-white">IP local</Label>
+                      <Input
+                        id="localIp"
+                        name="localIp"
+                        value={formData.localIp}
+                        onChange={handleChange}
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="mdnsHostname" className="text-white">mDNS local</Label>
+                      <Input
+                        id="mdnsHostname"
+                        name="mdnsHostname"
+                        value={formData.mdnsHostname}
+                        onChange={handleChange}
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-purple-500/20 bg-black/30 p-4">
+                    <Label htmlFor="deviceToken" className="text-white">Token do Dispositivo</Label>
                     <Input
-                      id="mqttCommandTopicPreview"
-                      value={topicPreview.command}
+                      id="deviceToken"
+                      name="deviceToken"
+                      value={formData.deviceToken}
                       readOnly
-                      className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                      className="mt-2 bg-black/40 border-purple-500/30 text-white"
                     />
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="rounded-xl border border-purple-500/20 bg-black/30 p-4">
                 <div className="flex items-start gap-3">
                   <ShieldCheck className="mt-0.5 h-5 w-5 text-purple-300" />
                   <p className="text-sm leading-6 text-gray-400">
-                    O dispositivo será criado em modo offline/manual. A próxima etapa é parear via token, MQTT,
-                    ESPHome ou Home Assistant quando a estrutura backend estiver disponível.
+                    Apenas as informações essenciais são necessárias. O restante é preenchido automaticamente pelo backend e pela firmware SmartControl.
                   </p>
                 </div>
               </div>

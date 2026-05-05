@@ -111,6 +111,9 @@ const DeviceCard = ({ device, onToggle, onDelete, index = 0, showDelete }) => {
         open={confirmOpen}
         title="Excluir dispositivo?"
         description={`Deseja realmente excluir "${device.name}"? Esta ação não pode ser desfeita.`}
+        confirmLabel="Sim, excluir"
+        cancelLabel="Nao"
+        destructive
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleConfirmDelete}
       />

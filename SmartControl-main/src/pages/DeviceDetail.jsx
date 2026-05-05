@@ -15,6 +15,7 @@ import { toast } from '@/components/ui/use-toast';
 import { getDeviceModelLabel, getDeviceProtocolLabel, getDeviceProjectName, isDeviceOnline } from '@/lib/deviceProjects';
 import { applyHydroponicsCommandState, isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
 import { backendUrl } from '@/lib/backend';
+import { subscribeBackendEvents } from '@/lib/realtimeEvents';
 
 const DeviceDetail = () => {
   const { id } = useParams();
@@ -29,6 +30,7 @@ const DeviceDetail = () => {
     device_id: '',
     mac_address: '',
     ip_address: '',
+    mdns_hostname: '',
     mqtt_topic: '',
   });
   const optimisticDeviceRef = useRef(null);
@@ -55,10 +57,9 @@ const DeviceDetail = () => {
 
     const optimisticDevice = optimisticDeviceRef.current;
     if (optimisticDevice) {
-      const remoteTime = new Date(data.last_heartbeat || data.updated_at || data.created_at || 0).getTime();
       const optimisticTime = new Date(optimisticDevice.last_heartbeat || optimisticDevice.updated_at || 0).getTime();
 
-      if (Date.now() - optimisticTime > 12000 || remoteTime >= optimisticTime) {
+      if (Date.now() - optimisticTime > 6000) {
         optimisticDeviceRef.current = null;
         setDevice(data);
       } else {
@@ -73,7 +74,8 @@ const DeviceDetail = () => {
     setConnectionData({
       device_id: data.device_id || '',
       mac_address: data.mac_address || '',
-      ip_address: data.ip || '',
+      ip_address: data.local_ip || data.ip || '',
+      mdns_hostname: data.mdns_hostname || '',
       mqtt_topic: data.mqtt_topic || '',
     });
     setLoading(false);
@@ -86,7 +88,16 @@ const DeviceDetail = () => {
       fetchDevice();
     }, 3000);
 
-    return () => window.clearInterval(polling);
+    const unsubscribeBackendEvents = subscribeBackendEvents({
+      onDeviceState: (event) => {
+        if (event.device_id === id) fetchDevice();
+      },
+    });
+
+    return () => {
+      window.clearInterval(polling);
+      unsubscribeBackendEvents();
+    };
   }, [user, id]);
 
   const sendDeviceCommand = async (commandPayload) => {
@@ -176,7 +187,8 @@ const DeviceDetail = () => {
       .update({
         device_id: connectionData.device_id || null,
         mac_address: connectionData.mac_address || null,
-        ip: connectionData.ip_address || null,
+        local_ip: connectionData.ip_address || null,
+        mdns_hostname: connectionData.mdns_hostname || null,
         mqtt_topic: connectionData.mqtt_topic || null,
         updated_at: new Date().toISOString(),
       })
@@ -204,7 +216,8 @@ const DeviceDetail = () => {
     setConnectionData({
       device_id: device?.device_id || '',
       mac_address: device?.mac_address || '',
-      ip_address: device?.ip || '',
+      ip_address: device?.local_ip || device?.ip || '',
+      mdns_hostname: device?.mdns_hostname || '',
       mqtt_topic: device?.mqtt_topic || '',
     });
     setEditingConnection(false);
@@ -324,6 +337,10 @@ const DeviceDetail = () => {
                       <p className="text-sm text-white">{connectionData.ip_address || 'Não informado'}</p>
                     </div>
                     <div>
+                      <p className="text-xs text-gray-500">mDNS local</p>
+                      <p className="text-sm text-white">{connectionData.mdns_hostname || 'Não informado'}</p>
+                    </div>
+                    <div>
                       <p className="text-xs text-gray-500">Tópico MQTT personalizado</p>
                       <p className="text-sm text-white break-all">{connectionData.mqtt_topic || 'Padrão do sistema'}</p>
                     </div>
@@ -363,6 +380,17 @@ const DeviceDetail = () => {
                       <p className="text-xs text-gray-400 mt-1">Endereço IP local (não é identificador principal)</p>
                     </div>
                     <div>
+                      <Label htmlFor="mdns_hostname" className="text-white">mDNS local</Label>
+                      <Input
+                        id="mdns_hostname"
+                        value={connectionData.mdns_hostname}
+                        onChange={(e) => setConnectionData(prev => ({ ...prev, mdns_hostname: e.target.value }))}
+                        placeholder="smarthidroponia.local"
+                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Opcional; ajuda quando o IP muda na rede local</p>
+                    </div>
+                    <div className="md:col-span-2">
                       <Label htmlFor="mqtt_topic" className="text-white">Tópico MQTT personalizado</Label>
                       <Input
                         id="mqtt_topic"
