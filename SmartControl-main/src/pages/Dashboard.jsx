@@ -20,7 +20,7 @@ const StatCard = ({ icon: Icon, label, value, accent = 'text-purple-400', delay 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay }}
-    className="gradient-card p-6 rounded-xl border border-purple-500/30"
+    className="gradient-card p-5 sm:p-6 rounded-xl border border-purple-500/30 min-h-[150px]"
   >
     <div className="flex items-center justify-between">
       <div>
@@ -53,7 +53,7 @@ const ProjectCard = ({ project, selected, onOpen, index }) => (
       </div>
     </div>
 
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <div className="rounded-xl bg-black/30 p-3 text-center">
         <p className="text-2xl font-bold text-white">{project.totalDevices}</p>
         <p className="text-xs text-gray-500">dispositivos</p>
@@ -88,7 +88,7 @@ const ProjectDashboard = ({ project, onToggle, onDeviceCommand, userId }) => (
   <motion.section
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
-    className="rounded-2xl border border-purple-500/30 bg-black/30 p-6"
+    className="rounded-2xl border border-purple-500/30 bg-black/30 p-4 sm:p-6"
   >
     <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <div>
@@ -104,7 +104,7 @@ const ProjectDashboard = ({ project, onToggle, onDeviceCommand, userId }) => (
       </Link>
     </div>
 
-    <div className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <StatCard icon={Layers} label="Dispositivos" value={project.totalDevices} />
       <StatCard icon={Wifi} label="Online" value={project.onlineDevices} accent="text-green-400" delay={0.05} />
       <StatCard icon={Power} label="Acionados" value={project.activeDevices} accent="text-purple-300" delay={0.1} />
@@ -375,23 +375,25 @@ const Dashboard = () => {
       </Helmet>
 
       <DashboardLayout>
-        <div className="space-y-8">
+        <div className="space-y-8 w-full">
           <div className="mt-6 mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+            <div className="max-w-3xl">
               <p className="text-sm uppercase tracking-[0.25em] text-purple-300">Olá, {displayName}</p>
               <h1 className="mt-2 text-3xl font-bold text-white md:text-4xl">
                 Sua central SmartControl
               </h1>
-              <p className="mt-2 text-gray-400">
+              <p className="mt-2 text-gray-400 leading-7">
                 Organize projetos, controle dispositivos e acompanhe sensores em uma visão única.
               </p>
             </div>
-            <Link to="/add-device">
-              <Button className="bg-purple-600 hover:bg-purple-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Novo dispositivo
-              </Button>
-            </Link>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Link to="/add-device" className="w-full sm:w-auto">
+                <Button className="w-full bg-purple-600 hover:bg-purple-700 sm:w-auto">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo dispositivo
+                </Button>
+              </Link>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">

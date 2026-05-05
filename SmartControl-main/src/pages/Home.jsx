@@ -166,7 +166,7 @@ const Home = () => {
       </Helmet>
 
       <div className="bg-black">
-        <section className="relative pt-32 pb-20 px-4 overflow-hidden">
+        <section className="relative pt-20 pb-16 px-4 sm:px-6 overflow-hidden">
           <div className="absolute inset-0 gradient-purple opacity-50"></div>
           <div className={`absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-20`}></div>
 
@@ -183,7 +183,7 @@ const Home = () => {
               transition={{
                 duration: 0.8,
               }}
-              className="text-center"
+              className="text-center max-w-3xl mx-auto"
             >
               <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold text-white mb-6">
                 Smart<span className="text-purple-400">Control</span>
@@ -220,11 +220,11 @@ const Home = () => {
               }}
               className="mt-16"
             >
-              <div className="relative mx-auto max-w-5xl">
+              <div className="relative mx-auto max-w-5xl aspect-[16/9] sm:aspect-[2/1]">
                 <div className="absolute -inset-4 rounded-3xl bg-purple-600/20 blur-2xl"></div>
-                <div className="relative overflow-hidden rounded-3xl border border-purple-500/30 bg-black/60 shadow-2xl shadow-purple-950/30">
+                <div className="relative overflow-hidden rounded-3xl border border-purple-500/30 bg-black/60 shadow-2xl shadow-purple-950/30 h-full">
                   <img
-                    className="w-full object-cover"
+                    className="absolute inset-0 w-full h-full object-cover"
                     alt="SmartControl controlando casa inteligente, irrigação e sensores IoT"
                     src={heroImage}
                     loading="eager"

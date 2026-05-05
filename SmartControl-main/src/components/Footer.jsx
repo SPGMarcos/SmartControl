@@ -10,8 +10,7 @@ const Footer = () => {
   const sidebarWidth = 256; // igual ao SIDEBAR_WIDTH do DashboardLayout
   return (
     <footer
-      className="bg-black border-t border-purple-500/30 py-12 px-4"
-      style={isDashboard ? { paddingLeft: sidebarWidth } : {}}
+      className={`bg-black border-t border-purple-500/30 py-12 px-4 ${isDashboard ? 'lg:pl-64' : ''}`}
     >
       <div className="container mx-auto max-w-6xl">
         <div className="grid md:grid-cols-3 gap-8">

@@ -45,7 +45,7 @@ const DashboardLayout = ({ children }) => {
     <div className="flex min-h-screen bg-black">
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-gradient-to-b from-gray-900 to-black border-r border-purple-500/30 z-40 transform transition-transform duration-300 ${
+        className={`fixed top-0 left-0 h-full w-64 bg-gradient-to-b from-gray-900 to-black border-r border-purple-500/30 z-40 transform transition-transform duration-300 overflow-y-auto pb-8 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
         style={{ paddingTop: HEADER_HEIGHT }}
@@ -133,14 +133,17 @@ const DashboardLayout = ({ children }) => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-6 lg:p-8" style={{ paddingTop: HEADER_HEIGHT }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            {children}
-          </motion.div>
+        <main className="flex-1" style={{ paddingTop: HEADER_HEIGHT }}>
+          <div className="min-h-[calc(100vh-64px)] px-4 py-6 sm:px-6 lg:px-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="max-w-7xl mx-auto w-full"
+            >
+              {children}
+            </motion.div>
+          </div>
         </main>
       </div>
 
