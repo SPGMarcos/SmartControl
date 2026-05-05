@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
@@ -12,6 +12,81 @@ import {
 } from '@/lib/security';
 
 const AuthContext = createContext(undefined);
+const SESSION_REMEMBER_KEY = 'smartcontrol.remember_session';
+const SESSION_BROWSER_KEY = 'smartcontrol.browser_session_active';
+const SESSION_ACTIVITY_KEY = 'smartcontrol.last_activity_at';
+const SESSION_IDLE_MS = 10 * 60 * 1000;
+const ACTIVITY_WRITE_THROTTLE_MS = 20 * 1000;
+
+const getStoredValue = (storage, key) => {
+  if (typeof window === 'undefined') return '';
+
+  try {
+    return storage.getItem(key) || '';
+  } catch {
+    return '';
+  }
+};
+
+const setStoredValue = (storage, key, value) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // Storage can be unavailable in private browsing modes.
+  }
+};
+
+const removeStoredValue = (storage, key) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    storage.removeItem(key);
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+};
+
+export const getRememberSessionPreference = () => {
+  if (typeof window === 'undefined') return false;
+  return getStoredValue(window.localStorage, SESSION_REMEMBER_KEY) === 'true';
+};
+
+const isPasswordRecoveryUrl = () => {
+  if (typeof window === 'undefined') return false;
+
+  const search = window.location.search || '';
+  const hash = window.location.hash || '';
+
+  return (
+    search.includes('reset_password=true') ||
+    hash.includes('type=recovery') ||
+    hash.includes('access_token')
+  );
+};
+
+const markSessionPolicy = (rememberSession) => {
+  if (typeof window === 'undefined') return;
+
+  const now = String(Date.now());
+  setStoredValue(window.localStorage, SESSION_REMEMBER_KEY, rememberSession ? 'true' : 'false');
+  setStoredValue(window.sessionStorage, SESSION_BROWSER_KEY, 'true');
+  setStoredValue(window.localStorage, SESSION_ACTIVITY_KEY, now);
+};
+
+const clearSessionPolicy = () => {
+  if (typeof window === 'undefined') return;
+
+  setStoredValue(window.localStorage, SESSION_REMEMBER_KEY, 'false');
+  removeStoredValue(window.sessionStorage, SESSION_BROWSER_KEY);
+  removeStoredValue(window.localStorage, SESSION_ACTIVITY_KEY);
+};
+
+const readLastActivity = () => {
+  if (typeof window === 'undefined') return Date.now();
+  return Number(getStoredValue(window.localStorage, SESSION_ACTIVITY_KEY) || Date.now());
+};
 
 const getPasswordResetRedirectUrl = () => {
   const configuredUrl = import.meta.env.VITE_PASSWORD_RESET_REDIRECT_URL;
@@ -52,19 +127,68 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const lastActivityWriteRef = useRef(0);
+
+  const finishLocalSignOut = useCallback(async ({ reason, showErrorToast = false } = {}) => {
+    clearSessionPolicy();
+
+    let error = null;
+    try {
+      const result = await supabase.auth.signOut();
+      error = result.error;
+    } catch (signOutError) {
+      error = signOutError;
+    }
+
+    setSession(null);
+    setUser(null);
+    setLoading(false);
+
+    if (reason === 'idle') {
+      toast({
+        title: 'Sessao encerrada',
+        description: 'Por seguranca, encerramos a sessao apos 10 minutos sem atividade.',
+      });
+    }
+
+    if (error && showErrorToast) {
+      toast({
+        variant: 'destructive',
+        title: 'Nao foi possivel sair',
+        description: 'Tente novamente em alguns instantes.',
+      });
+    }
+
+    return { error };
+  }, [toast]);
 
   const handleSession = useCallback(async (currentSession) => {
     if (isSessionExpired(currentSession)) {
-      setSession(null);
-      setUser(null);
-      setLoading(false);
+      await finishLocalSignOut();
       return;
+    }
+
+    if (currentSession) {
+      const rememberSession = getRememberSessionPreference();
+      const hasBrowserSession = typeof window !== 'undefined'
+        ? getStoredValue(window.sessionStorage, SESSION_BROWSER_KEY) === 'true'
+        : true;
+
+      if (isPasswordRecoveryUrl()) {
+        markSessionPolicy(false);
+      } else if (!rememberSession && !hasBrowserSession) {
+        await finishLocalSignOut();
+        return;
+      } else if (!rememberSession && Date.now() - readLastActivity() > SESSION_IDLE_MS) {
+        await finishLocalSignOut({ reason: 'idle' });
+        return;
+      }
     }
 
     setSession(currentSession);
     setUser(currentSession?.user ?? null);
     setLoading(false);
-  }, []);
+  }, [finishLocalSignOut]);
 
   useEffect(() => {
     const getSession = async () => {
@@ -83,6 +207,45 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, [handleSession]);
 
+  useEffect(() => {
+    if (!session || getRememberSessionPreference()) return undefined;
+
+    const writeActivity = () => {
+      const now = Date.now();
+      if (now - readLastActivity() > SESSION_IDLE_MS) {
+        finishLocalSignOut({ reason: 'idle' });
+        return;
+      }
+
+      if (now - lastActivityWriteRef.current < ACTIVITY_WRITE_THROTTLE_MS) return;
+
+      lastActivityWriteRef.current = now;
+      setStoredValue(window.localStorage, SESSION_ACTIVITY_KEY, String(now));
+    };
+
+    const checkIdle = () => {
+      if (Date.now() - readLastActivity() > SESSION_IDLE_MS) {
+        finishLocalSignOut({ reason: 'idle' });
+      }
+    };
+
+    writeActivity();
+
+    const events = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart', 'pointerdown', 'visibilitychange'];
+    events.forEach((eventName) => {
+      window.addEventListener(eventName, writeActivity, { passive: true });
+    });
+
+    const idleTimer = window.setInterval(checkIdle, 30 * 1000);
+
+    return () => {
+      events.forEach((eventName) => {
+        window.removeEventListener(eventName, writeActivity);
+      });
+      window.clearInterval(idleTimer);
+    };
+  }, [finishLocalSignOut, session]);
+
   const signUp = useCallback(async (email, password, options = {}) => {
     const normalizedEmail = normalizeEmail(email);
     const emailError = validateEmail(normalizedEmail);
@@ -92,7 +255,7 @@ export const AuthProvider = ({ children }) => {
       const message = emailError || passwordError;
       toast({
         variant: 'destructive',
-        title: 'Cadastro inválido',
+        title: 'Cadastro invalido',
         description: message,
       });
       return { error: { message } };
@@ -116,7 +279,7 @@ export const AuthProvider = ({ children }) => {
     if (error) {
       toast({
         variant: 'destructive',
-        title: 'Não foi possível criar a conta',
+        title: 'Nao foi possivel criar a conta',
         description: getSafeAuthErrorMessage('Revise os dados informados e tente novamente.'),
       });
     }
@@ -124,35 +287,41 @@ export const AuthProvider = ({ children }) => {
     return { error };
   }, [toast]);
 
-  const signIn = useCallback(async (email, password) => {
+  const signIn = useCallback(async (email, password, options = {}) => {
     const normalizedEmail = normalizeEmail(email);
     const emailError = validateEmail(normalizedEmail);
+    const rememberSession = options.remember === true;
 
     if (emailError || !password) {
       const message = emailError || 'Informe sua senha.';
       toast({
         variant: 'destructive',
-        title: 'Login inválido',
+        title: 'Login invalido',
         description: message,
       });
       return { error: { message } };
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
+    markSessionPolicy(rememberSession);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
     });
 
     if (error) {
+      clearSessionPolicy();
       toast({
         variant: 'destructive',
-        title: 'Não foi possível entrar',
-        description: getSafeAuthErrorMessage('Email ou senha inválidos.'),
+        title: 'Nao foi possivel entrar',
+        description: getSafeAuthErrorMessage('Email ou senha invalidos.'),
       });
+    } else {
+      await handleSession(data.session);
     }
 
-    return { error };
-  }, [toast]);
+    return { data, error };
+  }, [handleSession, toast]);
 
   const resetPassword = useCallback(async (email) => {
     const normalizedEmail = normalizeEmail(email);
@@ -161,7 +330,7 @@ export const AuthProvider = ({ children }) => {
     if (emailError) {
       toast({
         variant: 'destructive',
-        title: 'Email inválido',
+        title: 'Email invalido',
         description: emailError,
       });
       return { error: { message: emailError } };
@@ -182,7 +351,7 @@ export const AuthProvider = ({ children }) => {
     if (error) {
       toast({
         variant: 'destructive',
-        title: 'Não foi possível enviar o link',
+        title: 'Nao foi possivel enviar o link',
         description: 'Verifique o email informado e tente novamente em alguns instantes.',
       });
     } else {
@@ -201,7 +370,7 @@ export const AuthProvider = ({ children }) => {
     if (passwordError) {
       toast({
         variant: 'destructive',
-        title: 'Senha inválida',
+        title: 'Senha invalida',
         description: passwordError,
       });
       return { error: { message: passwordError } };
@@ -214,13 +383,13 @@ export const AuthProvider = ({ children }) => {
     if (error) {
       toast({
         variant: 'destructive',
-        title: 'Não foi possível atualizar a senha',
+        title: 'Nao foi possivel atualizar a senha',
         description: 'Abra novamente o link recebido por email e tente outra vez.',
       });
     } else {
       toast({
         title: 'Senha atualizada',
-        description: 'Sua nova senha foi definida com segurança.',
+        description: 'Sua nova senha foi definida com seguranca.',
       });
     }
 
@@ -228,18 +397,8 @@ export const AuthProvider = ({ children }) => {
   }, [toast]);
 
   const signOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Não foi possível sair',
-        description: 'Tente novamente em alguns instantes.',
-      });
-    }
-
-    return { error };
-  }, [toast]);
+    return finishLocalSignOut({ showErrorToast: true });
+  }, [finishLocalSignOut]);
 
   const value = useMemo(() => ({
     user,

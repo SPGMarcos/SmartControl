@@ -38,6 +38,13 @@ const DashboardLayout = ({ children }) => {
     navigate('/');
   };
 
+  const mobileItemClass = (path) =>
+    `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[11px] font-medium transition ${
+      location.pathname === path
+        ? 'bg-purple-600 text-white'
+        : 'text-gray-400 hover:bg-purple-600/20 hover:text-white'
+    }`;
+
   const HEADER_HEIGHT = 64; // px
   const displayName = getUserDisplayName(user);
 
@@ -45,7 +52,7 @@ const DashboardLayout = ({ children }) => {
     <div className="flex min-h-screen bg-black">
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-gradient-to-b from-gray-900 to-black border-r border-purple-500/30 z-40 transform transition-transform duration-300 overflow-y-auto pb-8 ${
+        className={`fixed top-0 left-0 h-full w-64 bg-gradient-to-b from-gray-900 to-black border-r border-purple-500/30 z-50 transform transition-transform duration-300 overflow-y-auto pb-8 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
         style={{ paddingTop: HEADER_HEIGHT }}
@@ -103,13 +110,14 @@ const DashboardLayout = ({ children }) => {
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
-              size="icon"
+              aria-label={sidebarOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-white lg:hidden h-10 w-10"
+              className="h-10 w-auto gap-2 px-3 text-white lg:hidden"
             >
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              <span>Menu</span>
             </Button>
-            <span className="text-white font-bold text-xl hidden lg:block">
+            <span className="hidden text-white font-bold text-xl sm:block">
               SmartControl
             </span>
           </div>
@@ -134,7 +142,7 @@ const DashboardLayout = ({ children }) => {
 
         {/* Page content */}
         <main className="flex-1" style={{ paddingTop: HEADER_HEIGHT }}>
-          <div className="min-h-[calc(100vh-64px)] px-4 py-6 sm:px-6 lg:px-8">
+          <div className="min-h-[calc(100vh-64px)] px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -147,10 +155,45 @@ const DashboardLayout = ({ children }) => {
         </main>
       </div>
 
+      <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-purple-500/30 bg-black/95 px-2 py-2 shadow-2xl shadow-purple-950/40 backdrop-blur-lg lg:hidden">
+        <div className="mx-auto flex max-w-md items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[11px] font-medium text-gray-400 transition hover:bg-purple-600/20 hover:text-white"
+            aria-label="Abrir menu lateral"
+          >
+            <Menu className="h-5 w-5" />
+            Menu
+          </button>
+          <Link to="/dashboard" className={mobileItemClass('/dashboard')}>
+            <LayoutDashboard className="h-5 w-5" />
+            Inicio
+          </Link>
+          <Link to="/devices" className={mobileItemClass('/devices')}>
+            <Zap className="h-5 w-5" />
+            Dispositivos
+          </Link>
+          <Link to="/add-device" className={mobileItemClass('/add-device')}>
+            <Plus className="h-5 w-5" />
+            Adicionar
+          </Link>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[11px] font-medium text-gray-400 transition hover:bg-red-500/10 hover:text-white"
+            aria-label="Sair da conta"
+          >
+            <LogOut className="h-5 w-5" />
+            Sair
+          </button>
+        </div>
+      </nav>
+
       {/* Overlay para mobile quando a sidebar está aberta */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}

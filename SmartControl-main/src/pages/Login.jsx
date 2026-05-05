@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { getRememberSessionPreference, useAuth } from '@/contexts/SupabaseAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,6 +33,7 @@ const Login = () => {
   const [updateLoading, setUpdateLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [resetError, setResetError] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => getRememberSessionPreference());
   const { signIn, resetPassword, updatePassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -90,7 +91,7 @@ const Login = () => {
     }
 
     setLoading(true);
-    const { error } = await signIn(normalizedEmail, password);
+    const { error } = await signIn(normalizedEmail, password, { remember: rememberMe });
     setLoading(false);
     if (!error) {
       clearLoginAttempts();
@@ -230,6 +231,21 @@ const Login = () => {
                   </button>
                 </div>
               </div>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-purple-500/20 bg-black/30 p-3 text-sm text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-purple-500/50 bg-black accent-purple-600"
+                />
+                <span>
+                  <span className="block font-medium text-white">Lembrar de mim neste dispositivo</span>
+                  <span className="mt-1 block leading-5 text-gray-500">
+                    Desmarcado, o acesso nao sobrevive ao fechamento do navegador e expira apos 10 minutos sem atividade.
+                  </span>
+                </span>
+              </label>
 
               {loginError && (
                 <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">

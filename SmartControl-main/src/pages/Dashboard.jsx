@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowRight, Gauge, Layers, Plus, Power, Wifi, Zap } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, Gauge, Layers, Plus, Power, Wifi, Zap } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import DeviceCard from '@/components/DeviceCard';
 import HydroponicsDevicePanel from '@/components/HydroponicsDevicePanel';
@@ -91,7 +91,7 @@ const ProjectCard = ({ project, selected, onOpen, index }) => (
   </motion.div>
 );
 
-const ProjectDashboard = ({ project, onToggle, onDeviceCommand, userId }) => (
+const ProjectDashboard = ({ project, onToggle, onDeviceCommand, onClose, userId }) => (
   <motion.section
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -103,12 +103,23 @@ const ProjectDashboard = ({ project, onToggle, onDeviceCommand, userId }) => (
         <h2 className="mt-2 text-3xl font-bold text-white">{project.name}</h2>
         <p className="mt-2 text-gray-400">{project.description}</p>
       </div>
-      <Link to="/add-device">
-        <Button className="bg-purple-600 hover:bg-purple-700">
-          <Plus className="mr-2 h-4 w-4" />
-          Adicionar dispositivo
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Button
+          type="button"
+          onClick={onClose}
+          variant="outline"
+          className="border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar aos projetos
         </Button>
-      </Link>
+        <Link to="/add-device">
+          <Button className="w-full bg-purple-600 hover:bg-purple-700 sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            Adicionar dispositivo
+          </Button>
+        </Link>
+      </div>
     </div>
 
     <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -468,6 +479,7 @@ const Dashboard = () => {
                   project={selectedProject}
                   onToggle={handleDeviceToggle}
                   onDeviceCommand={handleDeviceCommand}
+                  onClose={() => setSelectedProjectId('')}
                   userId={user?.id}
                 />
               )}

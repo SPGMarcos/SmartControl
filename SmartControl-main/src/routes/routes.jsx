@@ -68,11 +68,11 @@ export default function AppRoutes() {
           element={
             isAdmin ? (
               <AdminRoute>
-                {noLayout ? element : <Layout>{element}</Layout>}
+                {element}
               </AdminRoute>
             ) : isPrivate ? (
               <PrivateRoute>
-                {noLayout ? element : <Layout>{element}</Layout>}
+                {element}
               </PrivateRoute>
             ) : (
               noLayout ? element : <Layout>{element}</Layout>
