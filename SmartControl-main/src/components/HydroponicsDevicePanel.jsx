@@ -56,6 +56,8 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
   const [busyCommand, setBusyCommand] = useState('');
   const [nowTick, setNowTick] = useState(Date.now());
   const busyCommandRef = useRef('');
+  const online = isDeviceOnline(device);
+  const effectiveAutomatic = online && state.t24;
 
   useEffect(() => {
     setTimerValues({
@@ -67,21 +69,20 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
   useEffect(() => {
     setNowTick(Date.now());
 
-    if (!state.t24) return undefined;
+    if (!effectiveAutomatic) return undefined;
 
     const timer = window.setInterval(() => {
       setNowTick(Date.now());
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [state.t24, state.rem, state.lastSeen]);
+  }, [effectiveAutomatic, state.rem, state.lastSeen]);
 
-  const online = isDeviceOnline(device);
   const stateAgeSeconds = state.lastSeen
     ? Math.max(0, Math.floor((nowTick - new Date(state.lastSeen).getTime()) / 1000))
     : 0;
   const automaticTimer = (() => {
-    if (!state.t24) {
+    if (!effectiveAutomatic) {
       return {
         pumpActive: state.v1,
         oxygenatorActive: state.v2,
@@ -107,14 +108,20 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
     };
   })();
   const visibleRemaining = automaticTimer.remaining;
-  const displayPumpState = state.t24 ? automaticTimer.pumpActive : state.v1;
-  const displayOxygenatorState = state.t24 ? automaticTimer.oxygenatorActive : state.v2;
-  const timerLabel = state.t24 ? (displayPumpState ? 'Bomba ativa' : 'Bomba em repouso') : 'Modo manual';
-  const timerTone = displayPumpState ? 'text-green-300' : 'text-amber-300';
+  const displayPumpState = effectiveAutomatic ? automaticTimer.pumpActive : state.v1;
+  const displayOxygenatorState = effectiveAutomatic ? automaticTimer.oxygenatorActive : state.v2;
+  const timerLabel = effectiveAutomatic
+    ? (displayPumpState ? 'Bomba ativa' : 'Bomba em repouso')
+    : state.t24
+      ? 'Aguardando conexão'
+      : 'Modo manual';
+  const timerTone = effectiveAutomatic
+    ? (displayPumpState ? 'text-green-300' : 'text-amber-300')
+    : 'text-gray-300';
   const localDashboardUrl = getHydroponicsLocalUrl(device);
   const localSettingsUrl = getHydroponicsLocalUrl(device, '/settings');
   const isManualControlsLocked = () =>
-    state.t24 ||
+    effectiveAutomatic ||
     busyCommand === 'set_auto' ||
     busyCommand === 'set_relay' ||
     busyCommandRef.current === 'set_auto' ||
@@ -249,7 +256,15 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
 
               <div className="mb-6 rounded-3xl border border-blue-500/30 bg-blue-500/10 p-5 text-center">
                 <p className={`text-sm font-bold uppercase tracking-[0.25em] ${timerTone}`}>{timerLabel}</p>
-                <p className="mt-3 font-mono text-4xl sm:text-5xl font-bold text-white">{formatHydroponicsTimer(visibleRemaining)}</p>
+                {effectiveAutomatic ? (
+                  <p className="mt-3 font-mono text-4xl sm:text-5xl font-bold text-white">
+                    {formatHydroponicsTimer(visibleRemaining)}
+                  </p>
+                ) : (
+                  <p className="mt-3 text-sm leading-6 text-gray-300">
+                    O modo automatico esta salvo no dispositivo. O contador volta a aparecer quando o heartbeat confirmar que ele esta online.
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -317,7 +332,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
 
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-            <MetricBox icon={Power} label="Modo" value={state.t24 ? 'Automático' : 'Manual'} />
+            <MetricBox icon={Power} label="Modo" value={state.t24 ? (online ? 'Automático' : 'Auto sem conexão') : 'Manual'} />
             <MetricBox icon={History} label="Última conexão" value={state.lastSeen ? new Date(state.lastSeen).toLocaleString('pt-BR') : 'Aguardando'} />
             {!compact && <MetricBox icon={Cpu} label="Firmware" value={state.firmwareVersion} />}
             {!compact && <MetricBox icon={Router} label="Rede local" value={state.ip || state.mdns || 'Não informado'} />}

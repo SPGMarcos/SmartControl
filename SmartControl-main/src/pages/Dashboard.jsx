@@ -190,7 +190,7 @@ const Dashboard = () => {
 
       const optimisticTime = new Date(optimisticDevice.last_heartbeat || optimisticDevice.updated_at || 0).getTime();
 
-      if (Date.now() - optimisticTime > 6000) {
+      if (Date.now() - optimisticTime > 25000) {
         optimisticDevicesRef.current.delete(device.id);
         return device;
       }
@@ -335,27 +335,39 @@ const Dashboard = () => {
       ? `/api/devices/${device.id}/config`
       : '/api/command';
 
-    const response = await fetch(`${backendUrl}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify(commandPayload?.useConfigTopic
-        ? {
-            ...(commandPayload?.payload || {}),
-            user_id: user?.id,
-          }
-        : {
-            device_id: device.id,
-            command: commandPayload?.command,
-            payload: commandPayload?.payload || {},
-            module: commandPayload?.module,
-            user_id: user?.id,
-          }),
-    });
+    let response;
+    let payload = {};
 
-    const payload = await response.json();
+    try {
+      response = await fetch(`${backendUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify(commandPayload?.useConfigTopic
+          ? {
+              ...(commandPayload?.payload || {}),
+              user_id: user?.id,
+            }
+          : {
+              device_id: device.id,
+              command: commandPayload?.command,
+              payload: commandPayload?.payload || {},
+              module: commandPayload?.module,
+              user_id: user?.id,
+            }),
+      });
+      payload = await response.json();
+    } catch (error) {
+      restoreDevice();
+      toast({
+        variant: 'destructive',
+        title: 'Backend indisponivel',
+        description: 'Nao foi possivel enviar o comando agora. Tente novamente em instantes.',
+      });
+      return;
+    }
 
     if (!response.ok) {
       restoreDevice();

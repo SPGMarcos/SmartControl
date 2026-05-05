@@ -52,6 +52,7 @@ export const mapDiscoveredDataToForm = (discoveredData) => {
     hardwareVersion: discoveredData.hardware_version || '',
     localIp: discoveredData.ip || '',
     mdnsHostname: discoveredData.mdns || '',
+    mqttTopic: discoveredData.topic_root || '',
     // Se for módulo de hidroponia, seleciona o tipo correto
     ...(discoveredData.module && discoveredData.module.includes('hydroponics') && {
       type: 'hydroponics',

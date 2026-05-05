@@ -79,6 +79,11 @@ const buildMqttTopics = (device = {}) => {
   };
 };
 
+const isSmartControlTopicRoot = (topicRoot = '') => {
+  const normalized = normalizeTopicRoot(topicRoot);
+  return /^smartcontrol\/[^/]+\/[^/]+\/[^/]+$/.test(normalized) ? normalized : '';
+};
+
 const defaultStatusTopics = [
   'smartcontrol/+/+/+/status',
   'smartcontrol/+/+/+/telemetry',
@@ -385,6 +390,19 @@ const handleMqttMessage = async (topic, message) => {
     updatePayload.hardware_version = payload.hardware_version || payload.hardwareVersion;
   }
 
+  const discoveredTopicRoot = isSmartControlTopicRoot(identity.topicRoot);
+  if (discoveredTopicRoot && normalizeTopicRoot(device.mqtt_topic || '') !== discoveredTopicRoot) {
+    const healedTopics = buildMqttTopics({ ...device, mqtt_topic: discoveredTopicRoot });
+    updatePayload.mqtt_topic = discoveredTopicRoot;
+    updatePayload.configuration = {
+      ...parseJsonField(device.configuration),
+      ...(updatePayload.configuration || {}),
+      mqtt_topics: healedTopics,
+      discovered_topic_root: discoveredTopicRoot,
+      discovered_topic_root_at: now,
+    };
+  }
+
   await safeUpdateDevice(device.id, updatePayload);
 
   sendRealtimeEvent({
@@ -433,15 +451,19 @@ mqttClient.on('error', (error) => {
 
 const validateHydroponicsCommand = ({ command, payload }) => {
   switch (command) {
-    case 'set_auto':
-      return { command, payload: { enabled: toBoolean(payload.enabled) } };
+    case 'set_auto': {
+      const enabled = toBoolean(payload.enabled ?? payload.automatic ?? payload.t24 ?? payload.value);
+      return { command, payload: { enabled, automatic: enabled, t24: enabled, value: enabled } };
+    }
 
     case 'set_relay': {
       const relay = String(payload.relay || '').trim();
       if (!['pump', 'oxygenator'].includes(relay)) {
         throw new Error('Relay invalido. Use pump ou oxygenator.');
       }
-      return { command, payload: { relay, value: toBoolean(payload.value) } };
+      const value = toBoolean(payload.value ?? payload.state ?? payload.enabled);
+      const relayStateKey = relay === 'pump' ? 'v1' : 'v2';
+      return { command, payload: { relay, value, [relayStateKey]: value } };
     }
 
     case 'set_timers': {
@@ -614,6 +636,22 @@ const publishCommandForDevice = async ({ device, command, payload, module, userI
 
   await publishJson(topics.command, mqttPayload, { qos: 1, retain: false });
 
+  if (module === 'heltec_esp32_lora_hydroponics' && command === 'set_auto') {
+    await publishJson(
+      topics.config,
+      {
+        ...mqttPayload,
+        command: 'set_config',
+        payload: {
+          enabled: payload.enabled,
+          automatic: payload.enabled,
+          t24: payload.enabled,
+        },
+      },
+      { qos: 1, retain: false },
+    );
+  }
+
   await logEvent({
     deviceId: device.id,
     userId,
@@ -684,7 +722,7 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   return res.json({
     status: 'ok',
-    version: '1.3.0',
+    version: '1.3.1',
     mqtt_connected: mqttClient.connected,
     subscribed_topics: statusTopics,
     auth_required: requireAuth,
