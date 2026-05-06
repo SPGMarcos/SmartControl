@@ -2,17 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
-import { Button } from '@/components/ui/button';
 import ThemeToggle from '@/components/ThemeToggle';
 import {
   Home,
   LayoutDashboard,
   Zap,
-  Plus,
   Settings,
   LogOut,
   Menu,
-  Shield,
   ShoppingBag,
   Layers,
 } from 'lucide-react';
@@ -29,31 +26,15 @@ const DashboardLayout = ({ children }) => {
     if (mediaQuery.matches) setIsSidebarOpen(false);
   }, []);
 
-  const menuGroups = [
-    {
-      heading: 'Navegacao',
-      items: [
-        { icon: Home, label: 'Home', path: '/' },
-        { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-        { icon: Layers, label: 'Projetos', path: '/dashboard' },
-        { icon: ShoppingBag, label: 'Loja', path: '/shop' },
-      ],
-    },
-    {
-      heading: 'Gerenciamento',
-      items: [
-        { icon: Zap, label: 'Dispositivos', path: '/devices' },
-        { icon: Plus, label: 'Adicionar', path: '/add-device' },
-        { icon: Settings, label: 'Configuracoes', path: '/settings' },
-      ],
-    },
+  const primaryItems = [
+    { icon: Home, label: 'Home', path: '/' },
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+    { icon: Zap, label: 'Dispositivos', path: '/devices' },
+    { icon: Layers, label: 'Projetos', path: '/dashboard', hash: '#projects' },
+    { icon: ShoppingBag, label: 'Loja', path: '/shop' },
   ];
 
-  const userRole = user?.app_metadata?.role || user?.user_metadata?.role || user?.role;
-
-  if (userRole === 'admin') {
-    menuGroups[1].items.push({ icon: Shield, label: 'Admin', path: '/admin' });
-  }
+  const settingsItem = { icon: Settings, label: 'Configuracoes', path: '/settings' };
 
   const handleLogout = async () => {
     await signOut();
@@ -62,82 +43,82 @@ const DashboardLayout = ({ children }) => {
 
   const toggleSidebar = () => setIsSidebarOpen((current) => !current);
 
-  const isActivePath = (path) =>
-    path === '/'
-      ? location.pathname === '/'
-      : location.pathname === path || location.pathname.startsWith(`${path}/`);
+  const closeSidebarOnMobile = () => {
+    if (window.matchMedia('(max-width: 1023px)').matches) setIsSidebarOpen(false);
+  };
 
-  const mobileItemClass = (path) =>
-    `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium leading-tight transition min-[380px]:px-2 min-[380px]:text-[11px] ${
-      isActivePath(path)
-        ? 'bg-purple-600 text-white'
-        : 'text-gray-400 hover:bg-purple-600/20 hover:text-white'
-    }`;
+  const isActiveItem = (item) => {
+    if (item.path === '/') return location.pathname === '/';
+    if (item.hash) return location.pathname === item.path && location.hash === item.hash;
+    if (item.path === '/dashboard') return location.pathname === '/dashboard' && !location.hash;
+    return location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+  };
+
+  const navTarget = (item) => (item.hash ? `${item.path}${item.hash}` : item.path);
+
+  const mobileItemClass = (item) =>
+    `mobile-nav-item ${isActiveItem(item) ? 'active' : ''}`;
+
+  const renderSidebarItem = (item) => {
+    const isActive = isActiveItem(item);
+    return (
+      <Link
+        key={item.label}
+        to={navTarget(item)}
+        onClick={closeSidebarOnMobile}
+        title={!isSidebarOpen ? item.label : undefined}
+        className={`sidebar-item ${isActive ? 'active' : ''}`}
+      >
+        <item.icon className="sidebar-icon" />
+        <span className="sidebar-text">{item.label}</span>
+      </Link>
+    );
+  };
 
   const displayName = getUserDisplayName(user);
+  const userInitial = displayName?.trim()?.charAt(0)?.toUpperCase() || 'S';
 
   return (
     <div className={`dashboard-shell mobile-wrap ${isSidebarOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
       {isSidebarOpen && (
-        <button
-          type="button"
+        <div
           className="sidebar-overlay"
           onClick={() => setIsSidebarOpen(false)}
-          aria-label="Fechar menu lateral"
+          aria-hidden="true"
         />
       )}
 
-      <aside className={`sidebar ${isSidebarOpen ? 'open' : 'collapsed'}`}>
-        <div className="sidebar-header">
-          <Link
-            to="/"
-            className="logo"
-            onClick={() => {
-              if (window.matchMedia('(max-width: 1023px)').matches) setIsSidebarOpen(false);
-            }}
-          >
+      <button
+        type="button"
+        aria-label={isSidebarOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
+        onClick={toggleSidebar}
+        className="app-menu-toggle"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : 'collapsed'}`} aria-label="Menu principal">
+        <div className="sidebar-top">
+          <Link to="/" className="logo" onClick={closeSidebarOnMobile}>
             <span>Smart</span>
-            <span className="text-purple-400">Control</span>
+            <span className="logo-accent">Control</span>
           </Link>
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className="sidebar-toggle"
-            aria-label={isSidebarOpen ? 'Recolher menu lateral' : 'Abrir menu lateral'}
-          >
-            <Menu className="h-5 w-5" />
-          </button>
         </div>
 
-        <nav className="sidebar-menu">
-          {menuGroups.map((group) => (
-            <div key={group.heading} className="sidebar-group">
-              <p className="sidebar-heading">{group.heading}</p>
-              {group.items.map((item) => {
-                const isActive = isActivePath(item.path);
-                return (
-                  <Link
-                    key={`${group.heading}-${item.label}`}
-                    to={item.path}
-                    onClick={() => {
-                      if (window.matchMedia('(max-width: 1023px)').matches) setIsSidebarOpen(false);
-                    }}
-                    title={!isSidebarOpen ? item.label : undefined}
-                    className={`sidebar-item ${isActive ? 'active' : ''}`}
-                  >
-                    <item.icon className="sidebar-icon" />
-                    <span className="sidebar-text">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
+        <div className="sidebar-middle">
+          <nav className="sidebar-menu">
+            {primaryItems.map(renderSidebarItem)}
+          </nav>
+        </div>
 
-        <div className="sidebar-account">
-          <div className="sidebar-user">
-            <p>{displayName}</p>
-            <span>Conta SmartControl</span>
+        <div className="sidebar-bottom">
+          {renderSidebarItem(settingsItem)}
+          <div className="sidebar-user" title={displayName}>
+            <span className="sidebar-avatar">{userInitial}</span>
+            <span className="sidebar-user-copy">
+              <span className="sidebar-user-name">{displayName}</span>
+              <span className="sidebar-user-meta">Conta SmartControl</span>
+            </span>
           </div>
           <button type="button" onClick={handleLogout} className="sidebar-item sidebar-logout" title="Sair">
             <LogOut className="sidebar-icon" />
@@ -148,25 +129,16 @@ const DashboardLayout = ({ children }) => {
 
       <div className="dashboard-content">
         <header className="dashboard-header">
-          <div className="flex min-w-0 items-center gap-3">
-            <Button
-              variant="ghost"
-              aria-label={isSidebarOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
-              onClick={toggleSidebar}
-              className="h-10 w-auto shrink-0 gap-2 px-2 text-white min-[380px]:px-3"
-            >
-              <Menu className="h-5 w-5" />
-              <span className="hidden min-[380px]:inline lg:hidden">Menu</span>
-            </Button>
-            <Link to="/" className="hidden truncate text-xl font-bold text-white transition hover:text-purple-200 sm:block">
+          <div className="dashboard-header-start">
+            <Link to="/" className="dashboard-brand">
               SmartControl
             </Link>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold text-white">{displayName}</p>
-              <p className="text-xs text-gray-500">Dashboard ativo</p>
+          <div className="dashboard-header-end">
+            <div className="dashboard-user">
+              <p>{displayName}</p>
+              <span>Dashboard ativo</span>
             </div>
             <ThemeToggle />
           </div>
@@ -186,30 +158,21 @@ const DashboardLayout = ({ children }) => {
         </main>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-30 max-w-full border-t border-purple-500/30 bg-black/95 px-1.5 py-2 shadow-2xl shadow-purple-950/40 backdrop-blur-lg lg:hidden">
-        <div className="mx-auto flex max-w-md items-center gap-0.5 min-[380px]:gap-1">
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(true)}
-            className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium leading-tight text-gray-400 transition hover:bg-purple-600/20 hover:text-white min-[380px]:px-2 min-[380px]:text-[11px]"
-            aria-label="Abrir menu lateral"
-          >
-            <Menu className="h-5 w-5" />
-            Menu
-          </button>
-          <Link to="/" className={mobileItemClass('/')}>
+      <nav className="mobile-nav lg:hidden" aria-label="Navegacao principal mobile">
+        <div className="mobile-nav-inner">
+          <Link to="/" className={mobileItemClass(primaryItems[0])}>
             <Home className="h-5 w-5" />
             Home
           </Link>
-          <Link to="/dashboard" className={mobileItemClass('/dashboard')}>
+          <Link to="/dashboard" className={mobileItemClass(primaryItems[1])}>
             <LayoutDashboard className="h-5 w-5" />
             Painel
           </Link>
-          <Link to="/devices" className={mobileItemClass('/devices')}>
+          <Link to="/devices" className={mobileItemClass(primaryItems[2])}>
             <Zap className="h-5 w-5" />
             Dispositivos
           </Link>
-          <Link to="/shop" className={mobileItemClass('/shop')}>
+          <Link to="/shop" className={mobileItemClass(primaryItems[4])}>
             <ShoppingBag className="h-5 w-5" />
             Loja
           </Link>

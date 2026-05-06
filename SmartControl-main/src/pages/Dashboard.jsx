@@ -600,7 +600,7 @@ const Dashboard = () => {
           {projects.length > 0 && (
             <>
               {projectView === 'projects' && (
-              <section>
+              <section id="projects">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <h2 className="text-2xl font-bold text-white">Projetos e linhas de automação</h2>

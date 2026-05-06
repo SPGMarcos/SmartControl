@@ -18,7 +18,7 @@ const ThemeToggle = ({ className, showLabel = false }) => {
       aria-label={label}
       title={label}
       className={cn(
-        'theme-toggle border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white',
+        'theme-toggle',
         showLabel && 'gap-2 px-3',
         className
       )}
