@@ -9,6 +9,7 @@
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
+#include <time.h>
 #include <string.h>
 
 // --- Hardware Heltec V2 ---
@@ -41,7 +42,7 @@ bool mqttUseTls = false;
 
 const char* SMARTCONTROL_MODULE = "heltec_esp32_lora_hydroponics";
 const char* SMARTCONTROL_FIRMWARE = "smartcontrol-hidroponia-1.0.0";
-const char* SMARTCONTROL_HARDWARE = "Heltec ESP32 LoRa V2";
+const char* SMARTCONTROL_HARDWARE = "ESP32";
 
 // --- Persistência (LittleFS) ---
 void saveSettings() {
@@ -210,6 +211,7 @@ void publishStatus(const char* eventType = "status") {
     doc["tOff"] = tOffMin;
     doc["rem"] = calcularRestante();
     doc["uptime_ms"] = millis();
+    doc["timestamp"] = time(nullptr); // Unix timestamp
 
     publishJson(eventType, doc, strcmp(eventType, "status") == 0);
 }
@@ -520,6 +522,11 @@ void setup() {
     
     WiFiManager wm; 
     wm.autoConnect("ESP_Hidroponia");
+
+    // Sincronizar tempo com NTP
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    setenv("TZ", "UTC-3", 1); // Ajustar para fuso horário, ex: BRT
+    tzset();
 
     if (MDNS.begin("smarthidroponia")) {
         MDNS.addService("http", "tcp", 80);

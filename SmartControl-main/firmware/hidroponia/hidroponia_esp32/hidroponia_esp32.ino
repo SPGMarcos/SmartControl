@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <U8g2lib.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <WebServer.h>
@@ -11,11 +10,9 @@
 #include <ESPmDNS.h>
 #include <string.h>
 
-// --- Hardware Heltec V2 ---
-#define OLED_RST 16
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, OLED_RST, 15, 4);
-#define RELAY_BOMBA 2       
-#define RELAY_OXIGENADOR 17 
+// ================= GPIO =================
+#define RELAY_BOMBA 25
+#define RELAY_OXIGENADOR 26
 
 // --- OBJETOS GLOBAIS ---
 WebServer server(80);
@@ -28,7 +25,6 @@ bool trava24h = true;
 bool v1 = true, v2 = true;
 int tOnMin = 10, tOffMin = 10; 
 unsigned long ultimoTempoBomba = 0;
-unsigned long lastDisplayUpdate = 0;
 unsigned long lastMqttReconnectAttempt = 0;
 unsigned long lastMqttHeartbeat = 0;
 String mBroker, mUser, mPass;
@@ -39,9 +35,9 @@ String mqttHost = "";
 uint16_t mqttPort = 1883;
 bool mqttUseTls = false;
 
-const char* SMARTCONTROL_MODULE = "heltec_esp32_lora_hydroponics";
+const char* SMARTCONTROL_MODULE = "esp32_devkit_hydroponics";
 const char* SMARTCONTROL_FIRMWARE = "smartcontrol-hidroponia-1.0.0";
-const char* SMARTCONTROL_HARDWARE = "Heltec ESP32 LoRa V2";
+const char* SMARTCONTROL_HARDWARE = "ESP32 DevKit";
 
 // --- Persistência (LittleFS) ---
 void saveSettings() {
@@ -81,39 +77,6 @@ void loadSettings() {
             f.close();
         }
     }
-}
-
-// --- Display OLED ---
-void updateDisplay() {
-    u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.setCursor(0, 8);
-    u8g2.print("IP: "); u8g2.print(WiFi.localIP().toString());
-    u8g2.setCursor(0, 18);
-    u8g2.print("smarthidroponia.local"); 
-    u8g2.drawHLine(0, 21, 128);
-    
-    u8g2.setFont(u8g2_font_unifont_t_symbols);
-    u8g2.setCursor(0, 36);
-    u8g2.print(v1 ? "ON  " : "OFF "); u8g2.drawGlyph(40, 36, 0x2614);
-    u8g2.setFont(u8g2_font_6x10_tf); u8g2.print(" BOMBA");
-    
-    u8g2.setFont(u8g2_font_unifont_t_symbols);
-    u8g2.setCursor(0, 50);
-    u8g2.print(v2 ? "ON  " : "OFF "); u8g2.drawGlyph(40, 50, 0x2605);
-    u8g2.setFont(u8g2_font_6x10_tf); u8g2.print(" OXIGEN");
-    
-    if (trava24h) {
-        long restante = ((v1 ? tOnMin : tOffMin) * 60) - ((millis() - ultimoTempoBomba) / 1000);
-        if (restante < 0) restante = 0;
-        u8g2.drawFrame(0, 53, 128, 11);
-        u8g2.setCursor(35, 62);
-        u8g2.printf("%02d:%02d", (int)(restante / 60), (int)(restante % 60));
-    } else { 
-        u8g2.setCursor(35, 62); 
-        u8g2.print("MANUAL"); 
-    }
-    u8g2.sendBuffer();
 }
 
 // --- Integracao MQTT SmartControl ---
@@ -201,7 +164,7 @@ void publishStatus(const char* eventType = "status") {
     doc["hardware_version"] = SMARTCONTROL_HARDWARE;
     doc["mac"] = WiFi.macAddress();
     doc["ip"] = WiFi.localIP().toString();
-    doc["mdns"] = "smarthidroponia.local";
+    doc["mdns"] = "smartcontrol.local";
     doc["online"] = true;
     doc["t24"] = trava24h;
     doc["v1"] = v1;
@@ -228,17 +191,17 @@ void publishAck(const String& requestId, const String& command, bool accepted, c
 }
 
 void applyAutomaticMode(bool enabled) {
+    trava24h = enabled;
     if (enabled) {
-        digitalWrite(RELAY_OXIGENADOR, LOW);
         v2 = true;
-        delay(1000);
-        digitalWrite(RELAY_BOMBA, LOW);
+        digitalWrite(RELAY_OXIGENADOR, LOW);
+        delay(500);
         v1 = true;
+        digitalWrite(RELAY_BOMBA, LOW);
         ultimoTempoBomba = millis();
     } else {
         ultimoTempoBomba = millis();
     }
-    trava24h = enabled;
 }
 
 bool applyRemoteConfig(JsonObject data, String requestId, String command) {
@@ -404,17 +367,8 @@ void reconnectMQTT() {
     }
 }
 
-void smartControlMqttLoop() {
-    reconnectMQTT();
-    mqttClient.loop();
+// ================= HTML =================
 
-    if (mqttClient.connected() && millis() - lastMqttHeartbeat > 15000) {
-        lastMqttHeartbeat = millis();
-        publishStatus("heartbeat");
-    }
-}
-
-// --- Dashboard HTML Principal ---
 const char htmlPage[] PROGMEM = R"=====(
 <!DOCTYPE html>
 <html>
@@ -507,9 +461,10 @@ const char htmlPage[] PROGMEM = R"=====(
 </html>
 )=====";
 
+// ================= SETUP =================
+
 void setup() {
     Serial.begin(115200);
-    u8g2.begin();
     LittleFS.begin(true);
     loadSettings();
     
@@ -517,29 +472,30 @@ void setup() {
     pinMode(RELAY_OXIGENADOR, OUTPUT);
     digitalWrite(RELAY_BOMBA, v1 ? LOW : HIGH); 
     digitalWrite(RELAY_OXIGENADOR, v2 ? LOW : HIGH);
-    
-    WiFiManager wm; 
-    wm.autoConnect("ESP_Hidroponia");
 
-    if (MDNS.begin("smarthidroponia")) {
+    WiFiManager wm;
+    wm.autoConnect("SmartControl");
+
+    Serial.println(WiFi.localIP());
+
+    if (MDNS.begin("smartcontrol")) {
         MDNS.addService("http", "tcp", 80);
     }
-    
-    ArduinoOTA.setHostname("SmartControl-Hidroponia");
+
+    ArduinoOTA.setHostname("SmartControl");
     ArduinoOTA.onStart([]() { 
-        u8g2.clearBuffer(); 
-        u8g2.print("Atualizando..."); 
-        u8g2.sendBuffer(); 
+        Serial.println("Iniciando OTA..."); 
     });
     ArduinoOTA.begin();
 
-    server.on("/", [](){ 
-        server.send(200, "text/html", htmlPage); 
+    // ROTAS
+    server.on("/", []() {
+        server.send(200, "text/html", htmlPage);
     });
-    
+
     server.on("/status", [](){
         long restante = calcularRestante();
-        String json = "{\"device_id\":\""+mDeviceId+"\",\"module\":\""+String(SMARTCONTROL_MODULE)+"\",\"firmware_version\":\""+String(SMARTCONTROL_FIRMWARE)+"\",\"ip\":\""+WiFi.localIP().toString()+"\",\"mac\":\""+WiFi.macAddress()+"\",\"mdns\":\"smarthidroponia.local\",\"mqtt\":"+String(mqttClient.connected()?"true":"false")+",\"t24\":"+String(trava24h?"true":"false")+",\"v1\":"+String(v1?"true":"false")+",\"v2\":"+String(v2?"true":"false")+",\"rem\":"+String(restante)+",\"tOn\":"+String(tOnMin)+",\"tOff\":"+String(tOffMin)+"}";
+        String json = "{\"device_id\":\""+mDeviceId+"\",\"module\":\""+String(SMARTCONTROL_MODULE)+"\",\"firmware_version\":\""+String(SMARTCONTROL_FIRMWARE)+"\",\"ip\":\""+WiFi.localIP().toString()+"\",\"mac\":\""+WiFi.macAddress()+"\",\"mdns\":\"smartcontrol.local\",\"mqtt\":"+String(mqttClient.connected()?"true":"false")+",\"t24\":"+String(trava24h?"true":"false")+",\"v1\":"+String(v1?"true":"false")+",\"v2\":"+String(v2?"true":"false")+",\"rem\":"+String(restante)+",\"tOn\":"+String(tOnMin)+",\"tOff\":"+String(tOffMin)+"}";
         server.send(200, "application/json", json);
     });
 
@@ -550,13 +506,15 @@ void setup() {
         }
         if (server.hasArg("tOn")) { tOnMin = server.arg("tOn").toInt(); }
         if (server.hasArg("tOff")) { tOffMin = server.arg("tOff").toInt(); }
-        if (server.hasArg("v1") && !trava24h) { v1 = (server.arg("v1") == "true"); digitalWrite(RELAY_BOMBA, v1 ? LOW : HIGH); }
-        if (server.hasArg("v2") && !trava24h) { v2 = (server.arg("v2") == "true"); digitalWrite(RELAY_OXIGENADOR, v2 ? LOW : HIGH); }
+        if (!trava24h) {
+             if (server.hasArg("v1")) { v1 = (server.arg("v1") == "true"); digitalWrite(RELAY_BOMBA, v1 ? LOW : HIGH); }
+             if (server.hasArg("v2")) { v2 = (server.arg("v2") == "true"); digitalWrite(RELAY_OXIGENADOR, v2 ? LOW : HIGH); }
+        }
         saveSettings(); 
         publishStatus();
         server.send(200, "text/plain", "OK");
     });
-
+    
     server.on("/settings", [](){
         String h = "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no'><style>";
         h += "body{background:#0a0a0a;color:#fff;font-family:sans-serif;padding:15px;display:flex;flex-direction:column;align-items:center;}";
@@ -606,15 +564,35 @@ void setup() {
     server.begin();
 }
 
+
+void smartControlMqttLoop() {
+    if (!mqttClient.connected()) {
+        reconnectMQTT();
+    }
+    mqttClient.loop();
+
+    // Envia um status/heartbeat a cada 30 segundos para manter a conexão ativa
+    if (mqttClient.connected() && (millis() - lastMqttHeartbeat > 30000)) {
+        lastMqttHeartbeat = millis();
+        publishStatus("heartbeat");
+    }
+}
+
+// ================= LOOP =================
+
 void loop() {
+
     ArduinoOTA.handle();
     server.handleClient();
     smartControlMqttLoop();
-    if (millis() - lastDisplayUpdate > 500) { lastDisplayUpdate = millis(); updateDisplay(); }
+
     if (trava24h) {
         unsigned long intervalo = (v1 ? tOnMin : tOffMin) * 60000UL;
+
         if (millis() - ultimoTempoBomba >= intervalo) {
-            ultimoTempoBomba = millis(); v1 = !v1; 
+            ultimoTempoBomba = millis();
+            v1 = !v1;
+
             digitalWrite(RELAY_BOMBA, v1 ? LOW : HIGH);
             publishStatus();
         }

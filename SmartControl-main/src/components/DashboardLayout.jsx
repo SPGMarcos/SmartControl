@@ -23,6 +23,7 @@ const DashboardLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const menuItems = [
     { icon: Home, label: 'Home', path: '/' },
@@ -63,15 +64,26 @@ const DashboardLayout = ({ children }) => {
     <div className="mobile-wrap flex min-h-screen max-w-full overflow-x-hidden bg-black">
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-gradient-to-b from-gray-900 to-black border-r border-purple-500/30 z-50 transform transition-transform duration-300 overflow-y-auto pb-8 ${
+        className={`fixed top-0 left-0 h-full bg-gradient-to-b from-gray-900 to-black border-r border-purple-500/30 z-50 transform transition-all duration-300 overflow-y-auto pb-8 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0`}
+        } lg:translate-x-0 ${
+          sidebarCollapsed ? 'w-16' : 'w-64'
+        }`}
         style={{ paddingTop: HEADER_HEIGHT }}
       >
         <div className="p-6 pt-10">
-          <h1 className="text-2xl font-bold text-white mb-10 mt-2">
-            Smart<span className="text-purple-400">Control</span>
-          </h1>
+          <div className="flex items-center justify-between mb-10 mt-2">
+            <h1 className={`text-2xl font-bold text-white ${sidebarCollapsed ? 'hidden' : ''}`}>
+              Smart<span className="text-purple-400">Control</span>
+            </h1>
+            <Button
+              variant="ghost"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="text-gray-400 hover:text-white lg:block hidden"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+          </div>
 
           <nav className="space-y-2">
             {menuItems.map((item) => {
@@ -85,10 +97,10 @@ const DashboardLayout = ({ children }) => {
                     isActive
                       ? 'bg-purple-600 text-white'
                       : 'text-gray-400 hover:bg-purple-600/20 hover:text-white'
-                  }`}
+                  } ${sidebarCollapsed ? 'justify-center px-2' : ''}`}
                 >
                   <item.icon className="w-5 h-5" />
-                  <span>{item.label}</span>
+                  <span className={sidebarCollapsed ? 'hidden' : ''}>{item.label}</span>
                 </Link>
               );
             })}

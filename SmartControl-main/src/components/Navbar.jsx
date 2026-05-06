@@ -23,7 +23,7 @@ const Navbar = () => {
             <span className="text-xl font-bold text-foreground hidden sm:inline">SmartControl</span>
           </Link>
 
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-4">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-4">
             <MarketplaceModal />
             <ThemeToggle />
             {user ? (

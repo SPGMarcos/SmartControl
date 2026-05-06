@@ -55,6 +55,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
     tOff: state.tOff,
   });
   const [busyCommand, setBusyCommand] = useState('');
+  const [pendingAutoMode, setPendingAutoMode] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
   const busyCommandRef = useRef('');
   const online = isDeviceOnline(device);
@@ -66,6 +67,10 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
       tOff: state.tOff,
     });
   }, [state.tOn, state.tOff]);
+
+  useEffect(() => {
+    setPendingAutoMode(false);
+  }, [state.t24]);
 
   useEffect(() => {
     setNowTick(Date.now());
@@ -135,11 +140,17 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
 
     busyCommandRef.current = command;
     setBusyCommand(command);
+    if (command === 'set_auto') {
+      setPendingAutoMode(true);
+    }
     try {
       await onCommand(buildHydroponicsCommand(command, payload));
     } finally {
       busyCommandRef.current = '';
       setBusyCommand('');
+      if (command === 'set_auto') {
+        // Pending will be cleared when device state updates
+      }
     }
   };
 
@@ -183,7 +194,6 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
             </span>
             <StatusPill online={online} />
           </div>
-          <h2 className="break-words text-2xl font-bold text-white sm:text-3xl">{device.name}</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
             Painel integrado do Heltec ESP32 LoRa mantendo a mesma lógica local: bomba, oxigenador,
             modo automático, temporizador ON/OFF, dashboard embarcada, OTA, WiFiManager e MQTT Cloud.
@@ -215,10 +225,12 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 sm:justify-start">
-              <span className="text-sm text-gray-400">Modo automático</span>
+              <span className="text-sm text-gray-400">
+                {pendingAutoMode ? (state.t24 ? 'Desativando...' : 'Ativando...') : 'Modo automático'}
+              </span>
               <Switch
                 checked={state.t24}
-                disabled={busyCommand === 'set_auto'}
+                disabled={busyCommand === 'set_auto' || pendingAutoMode}
                 onCheckedChange={(checked) => sendCommand('set_auto', { enabled: checked })}
                 className="scale-110"
               />

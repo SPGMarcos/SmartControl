@@ -43,6 +43,8 @@ const DeviceDetail = () => {
   const [command, setCommand] = useState('request_status');
   const [sending, setSending] = useState(false);
   const [editingConnection, setEditingConnection] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [newName, setNewName] = useState('');
   const [connectionData, setConnectionData] = useState({
     device_id: '',
     mac_address: '',
@@ -96,6 +98,29 @@ const DeviceDetail = () => {
       mqtt_topic: data.mqtt_topic || '',
     });
     setLoading(false);
+  };
+
+  const handleSaveName = async () => {
+    if (!newName.trim()) return;
+    const { error } = await supabase
+      .from('devices')
+      .update({ name: newName.trim() })
+      .eq('id', device.id);
+
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar nome',
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: 'Nome atualizado',
+        description: `Dispositivo renomeado para ${newName.trim()}.`,
+      });
+      setEditingName(false);
+      fetchDevice();
+    }
   };
 
   useEffect(() => {
@@ -364,6 +389,38 @@ const DeviceDetail = () => {
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
           </Button>
+
+          <div className="gradient-card mobile-card rounded-2xl border border-purple-500/30 p-4 sm:rounded-3xl sm:p-7">
+            <div className="flex items-center justify-between">
+              <h1 className="break-words text-2xl font-bold text-white sm:text-4xl">{device.name}</h1>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setNewName(device.name);
+                  setEditingName(true);
+                }}
+                className="border-purple-500/30 text-gray-300 hover:text-white"
+              >
+                <Edit3 className="w-4 h-4 mr-2" /> Editar nome
+              </Button>
+            </div>
+            {editingName && (
+              <div className="mt-4 flex gap-2">
+                <Input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Novo nome do dispositivo"
+                  className="flex-1"
+                />
+                <Button onClick={handleSaveName} disabled={!newName.trim()}>
+                  <Save className="w-4 h-4 mr-2" /> Salvar
+                </Button>
+                <Button variant="outline" onClick={() => setEditingName(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+          </div>
 
           {hydroponicsDevice && (
             <HydroponicsDevicePanel
