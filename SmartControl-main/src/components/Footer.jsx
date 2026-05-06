@@ -10,7 +10,7 @@ const Footer = () => {
   const sidebarWidth = 256; // igual ao SIDEBAR_WIDTH do DashboardLayout
   return (
     <footer
-      className={`bg-black border-t border-purple-500/30 py-12 px-4 ${isDashboard ? 'lg:pl-64' : ''}`}
+      className={`bg-black border-t border-purple-500/30 px-3 py-10 sm:px-4 sm:py-12 ${isDashboard ? 'lg:pl-64' : ''}`}
     >
       <div className="container mx-auto max-w-6xl">
         <div className="grid md:grid-cols-3 gap-8">
@@ -18,7 +18,7 @@ const Footer = () => {
             <h3 className="text-xl font-bold text-white mb-4">
               Smart<span className="text-purple-400">Control</span>
             </h3>
-            <p className="text-gray-400">
+            <p className="break-words text-gray-400">
               Plataforma inteligente de automação residencial e agrícola
             </p>
           </div>
@@ -49,26 +49,26 @@ const Footer = () => {
                 href="https://wa.me/5538999176405"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-gray-400 hover:text-green-400 transition-colors"
+                className="flex min-w-0 items-center gap-2 text-gray-400 hover:text-green-400 transition-colors"
               >
-                <MessageCircle className="w-5 h-5" />
-                <span>(38) 99917-6405</span>
+                <MessageCircle className="h-5 w-5 flex-none" />
+                <span className="break-words">(38) 99917-6405</span>
               </a>
               <a
                 href="https://instagram.com/marcosgabrielfer"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-gray-400 hover:text-purple-400 transition-colors"
+                className="flex min-w-0 items-center gap-2 text-gray-400 hover:text-purple-400 transition-colors"
               >
-                <Instagram className="w-5 h-5" />
-                <span>@marcosgabrielfer</span>
+                <Instagram className="h-5 w-5 flex-none" />
+                <span className="break-words">@marcosgabrielfer</span>
               </a>
             </div>
           </div>
         </div>
 
         <div className="mt-8 pt-8 border-t border-purple-500/30 text-center">
-          <p className="text-gray-400">
+          <p className="text-sm text-gray-400 sm:text-base">
             © 2024 SmartControl - Criado por Marcos Gabriel Ferreira Miranda
           </p>
         </div>

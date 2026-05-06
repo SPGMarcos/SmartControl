@@ -8,7 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import ThemeToggle from '@/components/ThemeToggle';
 import { CheckCircle, KeyRound, LogIn, Mail, X } from 'lucide-react';
+import { supabase } from '@/lib/customSupabaseClient';
 import {
+  PASSWORD_REQUIREMENTS_TEXT,
   clearLoginAttempts,
   formatLockTime,
   getLoginLockStatus,
@@ -28,32 +30,129 @@ const Login = () => {
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [updateLoading, setUpdateLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [resetError, setResetError] = useState('');
   const [rememberMe, setRememberMe] = useState(() => getRememberSessionPreference());
-  const { signIn, resetPassword, updatePassword } = useAuth();
+  const { user, session, signIn, resetPassword, updatePassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
-    const hashParams = new URLSearchParams(location.hash.replace('#', '?'));
-
+    const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
     const isRecoveryLink =
       urlParams.get('reset_password') === 'true' ||
+      urlParams.get('type') === 'recovery' ||
       hashParams.get('type') === 'recovery' ||
-      hashParams.get('access_token') !== null;
+      urlParams.has('code') ||
+      hashParams.has('access_token');
 
-    if (isRecoveryLink) {
+    if (user && session && !isRecoveryLink) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [location.hash, location.search, navigate, session, user]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const urlParams = new URLSearchParams(location.search);
+    const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+    const code = urlParams.get('code');
+    const accessToken = hashParams.get('access_token') || urlParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token') || urlParams.get('refresh_token');
+    const isRecoveryLink =
+      urlParams.get('reset_password') === 'true' ||
+      urlParams.get('type') === 'recovery' ||
+      hashParams.get('type') === 'recovery' ||
+      Boolean(code) ||
+      Boolean(accessToken);
+
+    if (!isRecoveryLink) return undefined;
+
+    const cleanRecoveryUrl = () => {
+      const cleanedParams = new URLSearchParams(location.search);
+      ['code', 'type', 'access_token', 'refresh_token', 'expires_at', 'expires_in', 'token_type'].forEach((key) => {
+        cleanedParams.delete(key);
+      });
+      cleanedParams.set('reset_password', 'true');
+      navigate(`/login?${cleanedParams.toString()}`, { replace: true });
+    };
+
+    const getCurrentSession = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      return currentSession;
+    };
+
+    const prepareRecoverySession = async () => {
       setResetMode('update');
       setResetOpen(true);
       setResetSent(false);
       setResetError('');
-    }
-  }, [location.hash, location.search]);
+      setRecoveryReady(false);
+      setRecoveryLoading(true);
+
+      try {
+        let currentSession = null;
+        let recoveryError = null;
+
+        if (code) {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          currentSession = data?.session || null;
+          recoveryError = error || null;
+
+          if (recoveryError) {
+            currentSession = await getCurrentSession();
+            recoveryError = currentSession ? null : recoveryError;
+          }
+        } else if (accessToken && refreshToken) {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          currentSession = data?.session || null;
+          recoveryError = error || null;
+
+          if (recoveryError) {
+            currentSession = await getCurrentSession();
+            recoveryError = currentSession ? null : recoveryError;
+          }
+        } else {
+          currentSession = await getCurrentSession();
+        }
+
+        if (!isMounted) return;
+
+        if (recoveryError || !currentSession) {
+          setResetError('Link de recuperacao invalido ou expirado. Solicite um novo email e abra o link mais recente.');
+          setRecoveryReady(false);
+        } else {
+          setRecoveryReady(true);
+          setResetError('');
+
+          if (code || accessToken || refreshToken || location.hash) {
+            cleanRecoveryUrl();
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setResetError('Nao foi possivel validar o link de recuperacao. Solicite um novo email e tente novamente.');
+          setRecoveryReady(false);
+        }
+      } finally {
+        if (isMounted) setRecoveryLoading(false);
+      }
+    };
+
+    prepareRecoverySession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [location.hash, location.search, navigate]);
 
   useEffect(() => {
     if (!resetOpen) return undefined;
@@ -95,7 +194,6 @@ const Login = () => {
     setLoading(false);
     if (!error) {
       clearLoginAttempts();
-      navigate('/dashboard');
     } else {
       registerFailedLoginAttempt();
       setLoginError('Email ou senha inválidos. Confira os dados e tente novamente.');
@@ -107,6 +205,8 @@ const Login = () => {
     setResetEmail(email);
     setResetSent(false);
     setResetError('');
+    setRecoveryReady(false);
+    setRecoveryLoading(false);
     setResetOpen(true);
   };
 
@@ -149,6 +249,11 @@ const Login = () => {
       return;
     }
 
+    if (!recoveryReady) {
+      setResetError('O link de recuperacao ainda nao foi validado. Aguarde alguns segundos ou solicite um novo link.');
+      return;
+    }
+
     setUpdateLoading(true);
     const { error } = await updatePassword(newPassword);
     setUpdateLoading(false);
@@ -159,7 +264,7 @@ const Login = () => {
       setConfirmPassword('');
       navigate('/dashboard');
     } else {
-      setResetError('Nao foi possivel salvar a nova senha. Abra novamente o link recebido e tente outra vez.');
+      setResetError(error?.message || 'Nao foi possivel salvar a nova senha. Abra novamente o link recebido e tente outra vez.');
     }
   };
 
@@ -170,7 +275,7 @@ const Login = () => {
         <meta name="description" content="Faça login na sua conta SmartControl para acessar seus dispositivos IoT." />
       </Helmet>
 
-      <div className="min-h-screen bg-black flex items-center justify-center px-4">
+      <div className="mobile-wrap flex min-h-screen items-center justify-center overflow-x-hidden bg-black px-3 sm:px-4">
         <div className="absolute inset-0 gradient-purple opacity-30"></div>
         <ThemeToggle className="fixed right-4 top-4 z-20" />
         
@@ -180,7 +285,7 @@ const Login = () => {
           transition={{ duration: 0.5 }}
           className="w-full max-w-md relative z-10"
         >
-          <div className="gradient-card p-8 rounded-2xl border border-purple-500/30">
+          <div className="gradient-card mobile-card rounded-2xl border border-purple-500/30 p-5 sm:p-8">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-white mb-2">
                 Smart<span className="text-purple-400">Control</span>
@@ -279,7 +384,7 @@ const Login = () => {
 
         {resetOpen && (
           <div
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 py-8 sm:items-center"
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-3 py-6 sm:items-center sm:px-4 sm:py-8"
             role="dialog"
             aria-modal="true"
             aria-labelledby="password-recovery-title"
@@ -291,12 +396,12 @@ const Login = () => {
               onClick={() => setResetOpen(false)}
             />
 
-            <div className="relative z-10 max-h-[calc(100vh-4rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-purple-500/30 bg-black shadow-2xl shadow-purple-950/40">
+            <div className="relative z-10 max-h-[calc(100vh-3rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-purple-500/30 bg-black shadow-2xl shadow-purple-950/40 sm:max-h-[calc(100vh-4rem)]">
               <div className="absolute inset-0 gradient-purple opacity-20" />
-              <div className="relative p-6 sm:p-8">
+              <div className="relative p-4 sm:p-8">
                 <div className="mb-6 flex items-start justify-between gap-4">
                   <div>
-                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-1 text-sm text-purple-200">
+                    <div className="theme-readable-pill mb-3 inline-flex max-w-full items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-1 text-sm text-purple-200">
                       {resetMode === 'update' ? <KeyRound className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
                       Segurança da conta
                     </div>
@@ -369,6 +474,12 @@ const Login = () => {
                   )
                 ) : (
                   <form onSubmit={handlePasswordUpdate} className="space-y-5">
+                    {recoveryLoading && (
+                      <div className="rounded-xl border border-purple-400/30 bg-purple-500/10 px-4 py-3 text-sm text-purple-100">
+                        Validando link de recuperacao...
+                      </div>
+                    )}
+
                     <div>
                       <Label htmlFor="new-password" className="text-white">Nova senha</Label>
                       <Input
@@ -380,6 +491,9 @@ const Login = () => {
                         placeholder="Mínimo de 8 caracteres"
                         required
                       />
+                      <p className="mt-2 text-xs leading-5 text-gray-400">
+                        {PASSWORD_REQUIREMENTS_TEXT}
+                      </p>
                     </div>
 
                     <div>
@@ -397,11 +511,11 @@ const Login = () => {
 
                     <Button
                       type="submit"
-                      disabled={updateLoading}
+                      disabled={updateLoading || recoveryLoading || !recoveryReady}
                       className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                     >
                       <KeyRound className="mr-2 h-4 w-4" />
-                      {updateLoading ? 'Atualizando...' : 'Salvar nova senha'}
+                      {recoveryLoading ? 'Validando link...' : updateLoading ? 'Atualizando...' : 'Salvar nova senha'}
                     </Button>
                   </form>
                 )}

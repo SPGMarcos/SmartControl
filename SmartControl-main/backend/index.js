@@ -20,6 +20,8 @@ const {
   MQTT_REQUIRE_DEVICE_TOKEN = 'false',
   CORS_ORIGIN,
   REQUIRE_AUTH = 'false',
+  DEVICE_HEARTBEAT_TIMEOUT_MS = '90000',
+  DEVICE_HEARTBEAT_SWEEP_INTERVAL_MS = '30000',
   PORT = 4000,
 } = process.env;
 
@@ -33,6 +35,8 @@ if (!MQTT_URL) {
 
 const requireAuth = REQUIRE_AUTH === 'true';
 const requireDeviceToken = MQTT_REQUIRE_DEVICE_TOKEN === 'true';
+const deviceHeartbeatTimeoutMs = Math.max(30000, Number(DEVICE_HEARTBEAT_TIMEOUT_MS) || 90000);
+const deviceHeartbeatSweepIntervalMs = Math.max(10000, Number(DEVICE_HEARTBEAT_SWEEP_INTERVAL_MS) || 30000);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: {
@@ -186,6 +190,12 @@ const toBoundedInteger = (value, { min, max, fallback }) => {
   return Math.min(max, Math.max(min, Math.round(number)));
 };
 
+const sanitizeText = (value = '', maxLength = 120) =>
+  String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim()
+    .slice(0, maxLength);
+
 const logEvent = async ({ deviceId = null, userId = null, type, payload }) => {
   const logPayload = {
     device_id: deviceId,
@@ -338,24 +348,38 @@ const handleMqttMessage = async (topic, message) => {
 
   const now = new Date().toISOString();
   const availabilityValue = payload.status ?? payload.state ?? payload.online;
-  const availabilityOffline =
-    eventType === 'availability' &&
-    ['offline', 'false', '0'].includes(String(availabilityValue || '').toLowerCase());
+  const availabilityText = String(availabilityValue ?? '').trim().toLowerCase();
+  const availabilityOffline = eventType === 'availability' && ['offline', 'false', '0', 'off'].includes(availabilityText);
+  const availabilityOnline = eventType === 'availability' && ['online', 'true', '1', 'on'].includes(availabilityText);
+  const presenceEvent =
+    ['status', 'telemetry', 'heartbeat', 'ack'].includes(eventType) ||
+    availabilityOffline ||
+    availabilityOnline;
+  const nextOnline = availabilityOffline ? false : presenceEvent ? true : null;
   const previousLastState = parseJsonField(device.last_state);
   const previousTelemetry = parseJsonField(device.telemetry);
   const replacesDeviceState = ['status', 'telemetry', 'heartbeat'].includes(eventType);
   const nextLastState = replacesDeviceState
-    ? payload
+    ? {
+        ...payload,
+        online: true,
+        last_seen: now,
+      }
     : {
         ...previousLastState,
-        online: !availabilityOffline,
+        ...(presenceEvent ? { online: nextOnline, last_seen: now } : {}),
         last_ack: eventType === 'ack' ? payload : previousLastState.last_ack,
         last_availability: eventType === 'availability' ? payload : previousLastState.last_availability,
       };
   const nextTelemetry = replacesDeviceState
-    ? payload
+    ? {
+        ...payload,
+        online: true,
+        last_seen: now,
+      }
     : {
         ...previousTelemetry,
+        ...(presenceEvent ? { online: nextOnline, last_seen: now } : {}),
         last_ack: eventType === 'ack' ? payload : previousTelemetry.last_ack,
         last_availability: eventType === 'availability' ? payload : previousTelemetry.last_availability,
       };
@@ -371,12 +395,22 @@ const handleMqttMessage = async (topic, message) => {
       : undefined;
 
   const updatePayload = {
-    connection_status: availabilityOffline ? 'offline' : 'online',
-    online: !availabilityOffline,
-    last_heartbeat: now,
-    last_state: nextLastState,
-    telemetry: nextTelemetry,
+    updated_at: now,
   };
+
+  if (presenceEvent) {
+    updatePayload.connection_status = nextOnline ? 'online' : 'offline';
+    updatePayload.online = nextOnline;
+    updatePayload.last_heartbeat = now;
+    updatePayload.last_state = nextLastState;
+    updatePayload.telemetry = nextTelemetry;
+  } else if (eventType === 'config') {
+    updatePayload.telemetry = {
+      ...previousTelemetry,
+      last_config_seen: payload,
+      last_config_seen_at: now,
+    };
+  }
 
   if (pumpState !== null) updatePayload.status = pumpState;
   if (nextConfiguration) updatePayload.configuration = nextConfiguration;
@@ -449,6 +483,60 @@ mqttClient.on('error', (error) => {
   console.error('Erro MQTT:', error?.message || error);
 });
 
+const markStaleDevicesOffline = async () => {
+  const cutoff = new Date(Date.now() - deviceHeartbeatTimeoutMs).toISOString();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('devices')
+    .select('id,user_id,device_id,name,last_heartbeat,last_state,telemetry')
+    .or('connection_status.eq.online,online.eq.true')
+    .not('last_heartbeat', 'is', null)
+    .lt('last_heartbeat', cutoff)
+    .limit(200);
+
+  if (error) {
+    console.warn('Nao foi possivel verificar heartbeats expirados:', error.message);
+    return;
+  }
+
+  await Promise.all((data || []).map(async (device) => {
+    const offlinePatch = {
+      online: false,
+      offline_reason: 'heartbeat_timeout',
+      last_offline_at: now,
+    };
+
+    await safeUpdateDevice(device.id, {
+      connection_status: 'offline',
+      online: false,
+      updated_at: now,
+      last_state: {
+        ...parseJsonField(device.last_state),
+        ...offlinePatch,
+      },
+      telemetry: {
+        ...parseJsonField(device.telemetry),
+        ...offlinePatch,
+      },
+    });
+
+    sendRealtimeEvent({
+      type: 'device_state',
+      device_id: device.id,
+      external_device_id: device.device_id,
+      user_id: device.user_id,
+      event_type: 'heartbeat_timeout',
+      updated_at: now,
+    });
+  }));
+};
+
+setInterval(() => {
+  markStaleDevicesOffline().catch((error) => {
+    console.warn('Erro ao marcar dispositivos offline:', error.message);
+  });
+}, deviceHeartbeatSweepIntervalMs);
+
 const validateHydroponicsCommand = ({ command, payload }) => {
   switch (command) {
     case 'set_auto': {
@@ -472,7 +560,26 @@ const validateHydroponicsCommand = ({ command, payload }) => {
       if (!tOn || !tOff) {
         throw new Error('Tempos invalidos. Use valores entre 1 e 1440 minutos.');
       }
-      return { command, payload: { tOn, tOff } };
+      const timerPayload = { tOn, tOff };
+      const remainingSeconds = toBoundedInteger(
+        payload.remainingSeconds ?? payload.remaining_seconds ?? payload.rem,
+        { min: 0, max: 1440 * 60, fallback: null },
+      );
+      const elapsedSeconds = toBoundedInteger(payload.elapsedSeconds ?? payload.elapsed_seconds, {
+        min: 0,
+        max: 1440 * 60,
+        fallback: null,
+      });
+
+      if (remainingSeconds !== null) {
+        timerPayload.remainingSeconds = remainingSeconds;
+        timerPayload.rem = remainingSeconds;
+      }
+      if (elapsedSeconds !== null) timerPayload.elapsedSeconds = elapsedSeconds;
+      if (payload.phase === 'on' || payload.phase === 'off') timerPayload.phase = payload.phase;
+      if (payload.preserveCycle === true) timerPayload.preserveCycle = true;
+
+      return { command, payload: timerPayload };
     }
 
     case 'request_status':
@@ -502,6 +609,31 @@ const validateHydroponicsConfig = (payload = {}) => {
 
   if (Object.hasOwn(payload, 'tOff')) {
     config.tOff = toBoundedInteger(payload.tOff, { min: 1, max: 1440, fallback: 10 });
+  }
+
+  if (Object.hasOwn(payload, 'remainingSeconds') || Object.hasOwn(payload, 'remaining_seconds') || Object.hasOwn(payload, 'rem')) {
+    const remainingSeconds = toBoundedInteger(
+      payload.remainingSeconds ?? payload.remaining_seconds ?? payload.rem,
+      { min: 0, max: 1440 * 60, fallback: 0 },
+    );
+    config.remainingSeconds = remainingSeconds;
+    config.rem = remainingSeconds;
+  }
+
+  if (Object.hasOwn(payload, 'elapsedSeconds') || Object.hasOwn(payload, 'elapsed_seconds')) {
+    config.elapsedSeconds = toBoundedInteger(payload.elapsedSeconds ?? payload.elapsed_seconds, {
+      min: 0,
+      max: 1440 * 60,
+      fallback: 0,
+    });
+  }
+
+  if (payload.phase === 'on' || payload.phase === 'off') {
+    config.phase = payload.phase;
+  }
+
+  if (payload.preserveCycle === true) {
+    config.preserveCycle = true;
   }
 
   if (Object.keys(config).length === 0) {
@@ -697,6 +829,85 @@ const publishConfigForDevice = async ({ device, config, userId }) => {
   return { status: 'sent', topic: topics.config, payload: mqttPayload };
 };
 
+const updateDeviceConnection = async ({ device, body = {}, userId }) => {
+  const now = new Date().toISOString();
+  const deviceId = sanitizeText(body.device_id ?? body.deviceId ?? device.device_id, 80);
+  const macAddress = sanitizeText(body.mac_address ?? body.macAddress ?? device.mac_address, 40);
+  const localIp = sanitizeText(body.local_ip ?? body.ip_address ?? body.ip ?? '', 60);
+  const mdnsHostname = sanitizeText(body.mdns_hostname ?? body.mdns ?? '', 80);
+  const mqttTopicInput = sanitizeText(body.mqtt_topic ?? body.mqttTopic ?? '', 160);
+  const topics = buildMqttTopics({
+    ...device,
+    device_id: deviceId || device.device_id || device.id,
+    mqtt_topic: mqttTopicInput || null,
+  });
+  const connection = {
+    device_id: deviceId || null,
+    mac_address: macAddress || null,
+    local_ip: localIp || null,
+    mdns_hostname: mdnsHostname || null,
+    mqtt_topic: topics.root,
+    updated_at: now,
+  };
+  const updatePayload = {
+    device_id: connection.device_id,
+    mac_address: connection.mac_address,
+    local_ip: connection.local_ip,
+    mdns_hostname: connection.mdns_hostname,
+    mqtt_topic: connection.mqtt_topic,
+    configuration: {
+      ...parseJsonField(device.configuration),
+      mqtt_topics: topics,
+      connection,
+      connection_updated_at: now,
+    },
+    updated_at: now,
+  };
+
+  let { data, error } = await supabase
+    .from('devices')
+    .update(updatePayload)
+    .eq('id', device.id)
+    .select()
+    .single();
+
+  if (error && shouldRetryWithoutNewColumns(error)) {
+    const fallbackPayload = {
+      device_id: connection.device_id,
+      mac_address: connection.mac_address,
+      mqtt_topic: connection.mqtt_topic,
+      updated_at: now,
+    };
+    const fallback = await supabase
+      .from('devices')
+      .update(fallbackPayload)
+      .eq('id', device.id)
+      .select()
+      .single();
+
+    data = fallback.data;
+    error = fallback.error;
+  }
+
+  if (error) {
+    error.statusCode = 400;
+    throw error;
+  }
+
+  await logEvent({
+    deviceId: device.id,
+    userId,
+    type: 'connection_updated',
+    payload: { connection, topics },
+  });
+
+  return {
+    device: data,
+    connection,
+    topics,
+  };
+};
+
 const app = express();
 app.use(helmet());
 app.use(cors({
@@ -722,11 +933,12 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   return res.json({
     status: 'ok',
-    version: '1.3.1',
+    version: '1.4.0',
     mqtt_connected: mqttClient.connected,
     subscribed_topics: statusTopics,
     auth_required: requireAuth,
     device_token_required: requireDeviceToken,
+    heartbeat_timeout_ms: deviceHeartbeatTimeoutMs,
   });
 });
 
@@ -797,6 +1009,29 @@ app.get('/api/devices/:id/logs', async (req, res) => {
 
   return res.json({ logs: data || [] });
 });
+
+const handleConnectionUpdateRequest = async (req, res) => {
+  try {
+    const resolved = await resolveAuthorizedDevice(req, res, { dbId: req.params.id, deviceId: req.params.id });
+    if (!resolved) return;
+
+    const result = await updateDeviceConnection({
+      device: resolved.device,
+      body: req.body || {},
+      userId: resolved.userId,
+    });
+
+    return res.json(result);
+  } catch (error) {
+    console.error('Erro ao atualizar conexao do dispositivo:', error);
+    return res.status(error.statusCode || 400).json({
+      error: error.message || 'Nao foi possivel atualizar os dados de conexao.',
+    });
+  }
+};
+
+app.put('/api/devices/:id/connection', handleConnectionUpdateRequest);
+app.post('/api/devices/:id/connection', handleConnectionUpdateRequest);
 
 app.post('/api/command', async (req, res) => {
   const { device_id: requestDeviceId, command, payload, module, device_token: deviceToken } = req.body;

@@ -165,12 +165,12 @@ const Home = () => {
         <meta name="twitter:image" content={socialImageUrl} />
       </Helmet>
 
-      <div className="bg-black">
-        <section className="relative pt-20 pb-16 px-4 sm:px-6 overflow-hidden">
+      <div className="mobile-wrap overflow-x-hidden bg-black">
+        <section className="relative overflow-hidden px-3 pb-14 pt-20 sm:px-6 sm:pb-16">
           <div className="absolute inset-0 gradient-purple opacity-50"></div>
           <div className={`absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-20`}></div>
 
-          <div className="container mx-auto max-w-6xl relative z-10">
+          <div className="container relative z-10 mx-auto w-full max-w-6xl">
             <motion.div
               initial={{
                 opacity: 0,
@@ -183,25 +183,25 @@ const Home = () => {
               transition={{
                 duration: 0.8,
               }}
-              className="text-center max-w-3xl mx-auto"
+              className="mx-auto max-w-3xl text-center"
             >
-              <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold text-white mb-6">
+              <h1 className="mobile-title mb-5 text-3xl font-bold text-white sm:mb-6 sm:text-5xl md:text-7xl">
                 Smart<span className="text-purple-400">Control</span>
               </h1>
-              <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto">
+              <p className="mx-auto mb-6 max-w-3xl text-base leading-7 text-gray-300 sm:mb-8 sm:text-xl md:text-2xl">
                 Automação residencial e agrícola de última geração. Controle seus dispositivos IoT de qualquer lugar.
               </p>
               <p className="mx-auto mb-6 max-w-3xl text-base text-gray-400 md:text-lg">
                 Uma solução para quem precisa operar automação residencial, irrigação inteligente,
                 estufas, bombas, válvulas e sensores com mais previsibilidade e menos trabalho manual.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/register">
-                  <Button size="lg" className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg">
+              <div className="flex flex-col justify-center gap-3 sm:flex-row sm:gap-4">
+                <Link to="/register" className="w-full sm:w-auto">
+                  <Button size="lg" className="w-full bg-purple-600 px-6 py-5 text-base text-white hover:bg-purple-700 sm:w-auto sm:px-8 sm:py-6 sm:text-lg">
                     Começar Agora
                   </Button>
                 </Link>
-                <MarketplaceModal triggerLabel="Ver Loja" triggerMode="button" triggerClassName="px-8 py-6 text-lg" />
+                <MarketplaceModal triggerLabel="Ver Loja" triggerMode="button" triggerClassName="w-full px-6 py-5 text-base sm:w-auto sm:px-8 sm:py-6 sm:text-lg" />
               </div>
             </motion.div>
 
@@ -218,10 +218,10 @@ const Home = () => {
                 duration: 0.8,
                 delay: 0.3,
               }}
-              className="mt-16"
+              className="mt-10 sm:mt-16"
             >
-              <div className="relative mx-auto max-w-5xl aspect-[16/9] sm:aspect-[2/1]">
-                <div className="absolute -inset-4 rounded-3xl bg-purple-600/20 blur-2xl"></div>
+              <div className="relative mx-auto aspect-[16/9] max-w-5xl sm:aspect-[2/1]">
+                <div className="absolute -inset-2 rounded-3xl bg-purple-600/20 blur-2xl sm:-inset-4"></div>
                 <div className="relative overflow-hidden rounded-3xl border border-purple-500/30 bg-black/60 shadow-2xl shadow-purple-950/30 h-full">
                   <img
                     className="absolute inset-0 w-full h-full object-cover"
@@ -239,13 +239,13 @@ const Home = () => {
                   </div>
                 </div>
               </div>
-              <div className="mb-8 flex flex-wrap justify-center gap-3 mt-8">
+              <div className="mb-8 mt-8 flex flex-wrap justify-center gap-3">
                 {commercialHighlights.map((item) => (
                   <span
                     key={item}
-                    className="inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-black/40 px-4 py-2 text-sm text-gray-200"
+                    className="inline-flex w-full max-w-full items-center justify-center gap-2 rounded-full border border-purple-400/30 bg-black/40 px-3 py-2 text-center text-sm text-gray-200 sm:w-auto sm:px-4 sm:text-left"
                   >
-                    <CheckCircle2 className="h-4 w-4 text-purple-300" />
+                    <CheckCircle2 className="h-4 w-4 flex-none text-purple-300" />
                     {item}
                   </span>
                 ))}
@@ -254,7 +254,7 @@ const Home = () => {
           </div>
         </section>
 
-        <section className="py-20 px-4 bg-gradient-to-b from-black to-gray-900">
+        <section className="bg-gradient-to-b from-black to-gray-900 px-3 py-14 sm:px-4 sm:py-20">
           <div className="container mx-auto max-w-6xl">
             <motion.div
               initial={{
@@ -271,11 +271,11 @@ const Home = () => {
               }}
               className="text-center mb-16"
             >
-              <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">Recursos Poderosos</h2>
+              <h2 className="mobile-section-title mb-4 text-3xl font-bold text-white sm:text-4xl md:text-5xl">Recursos Poderosos</h2>
               <p className="text-xl text-gray-400">Tudo que você precisa para automação completa</p>
             </motion.div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
               {features.map((feature, index) => (
                 <motion.div
                   key={index}
@@ -294,7 +294,7 @@ const Home = () => {
                   viewport={{
                     once: true,
                   }}
-                  className="gradient-card p-6 rounded-xl border border-purple-500/20 hover:border-purple-500/50 transition-all"
+                  className="gradient-card mobile-card rounded-xl border border-purple-500/20 p-5 transition-all hover:border-purple-500/50 sm:p-6"
                 >
                   <feature.icon className="w-12 h-12 text-purple-400 mb-4" />
                   <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
@@ -305,7 +305,7 @@ const Home = () => {
           </div>
         </section>
 
-        <section className="py-20 px-4 bg-gradient-to-b from-gray-900 via-black to-gray-900">
+        <section className="bg-gradient-to-b from-gray-900 via-black to-gray-900 px-3 py-14 sm:px-4 sm:py-20">
           <div className="container mx-auto max-w-6xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -315,14 +315,14 @@ const Home = () => {
               className="grid items-center gap-10 lg:grid-cols-[1fr_0.9fr]"
             >
               <div>
-                <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-4 py-2 text-sm text-purple-200">
+                <span className="theme-readable-pill mb-4 inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-4 py-2 text-sm text-purple-200">
                   <ShieldCheck className="h-4 w-4" />
                   Plataforma preparada para operação profissional
                 </span>
-                <h2 className="text-4xl md:text-5xl font-bold text-white mb-5">
+                <h2 className="mobile-section-title mb-5 text-3xl font-bold text-white sm:text-4xl md:text-5xl">
                   Segurança, clareza e controle para vender como produto real
                 </h2>
-                <p className="text-lg leading-8 text-gray-400">
+                <p className="text-base leading-7 text-gray-400 sm:text-lg sm:leading-8">
                   A SmartControl centraliza dispositivos, sensores e automações em uma experiência única.
                   O objetivo é entregar mais controle para residências, produtores e empresas que precisam
                   acompanhar tudo remotamente, com uma base mais confiável para evoluir para integrações,
@@ -338,11 +338,11 @@ const Home = () => {
                       key={item.title}
                       className="gradient-card rounded-2xl border border-purple-500/20 p-5 transition hover:border-purple-400/50"
                     >
-                      <div className="flex items-start gap-4">
+                      <div className="flex min-w-0 items-start gap-3 sm:gap-4">
                         <span className="rounded-2xl border border-white/10 bg-purple-500/10 p-3">
                           <Icon className="h-6 w-6 text-purple-300" />
                         </span>
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-lg font-semibold text-white">{item.title}</h3>
                           <p className="mt-2 text-sm leading-6 text-gray-400">{item.description}</p>
                         </div>
@@ -355,7 +355,7 @@ const Home = () => {
           </div>
         </section>
 
-        <section className="py-20 px-4 bg-gradient-to-b from-gray-900 to-black">
+        <section className="bg-gradient-to-b from-gray-900 to-black px-3 py-14 sm:px-4 sm:py-20">
           <div className="container mx-auto max-w-6xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -364,20 +364,20 @@ const Home = () => {
               viewport={{ once: true }}
               className="mb-14 text-center"
             >
-              <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-4 py-2 text-sm text-purple-200">
+              <span className="theme-readable-pill mb-4 inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-4 py-2 text-sm text-purple-200">
                 <ArrowRight className="h-4 w-4" />
                 Planos por perfil de cliente
               </span>
-              <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+              <h2 className="mobile-section-title mb-4 text-3xl font-bold text-white sm:text-4xl md:text-5xl">
                 Uma SmartControl para cada tipo de operação
               </h2>
-              <p className="mx-auto max-w-3xl text-lg text-gray-400">
+              <p className="mx-auto max-w-3xl text-base leading-7 text-gray-400 sm:text-lg">
                 A plataforma fica organizada para atender desde uma casa inteligente até uma operação agrícola
                 com estufas, setores de irrigação, bombas, sensores e dispositivos distribuídos.
               </p>
             </motion.div>
 
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-6">
               {plans.map((plan, index) => {
                 const Icon = plan.icon;
                 return (
@@ -387,13 +387,13 @@ const Home = () => {
                     whileInView={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: index * 0.08 }}
                     viewport={{ once: true }}
-                    className="gradient-card flex h-full flex-col rounded-2xl border border-purple-500/20 p-6 hover:border-purple-400/50"
+                    className="gradient-card mobile-card flex h-full flex-col rounded-2xl border border-purple-500/20 p-5 hover:border-purple-400/50 sm:p-6"
                   >
-                    <div className="mb-5 flex items-center justify-between gap-4">
+                    <div className="mb-5 flex flex-col items-start gap-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
                       <span className="rounded-2xl border border-white/10 bg-purple-500/10 p-3">
                         <Icon className="h-7 w-7 text-purple-300" />
                       </span>
-                      <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-gray-300">
+                      <span className="max-w-full rounded-full bg-white/5 px-3 py-1 text-xs text-gray-300">
                         {plan.profile}
                       </span>
                     </div>
@@ -416,7 +416,7 @@ const Home = () => {
           </div>
         </section>
 
-        <section className="py-20 px-4 bg-gradient-to-b from-black to-gray-900">
+        <section className="bg-gradient-to-b from-black to-gray-900 px-3 py-14 sm:px-4 sm:py-20">
           <div className="container mx-auto max-w-6xl">
             <motion.div
               initial={{
@@ -435,8 +435,8 @@ const Home = () => {
             >
               <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">Pronto para começar?</h2>
               <p className="text-xl text-gray-400 mb-8">Crie sua conta gratuitamente e comece a automatizar hoje mesmo</p>
-              <Link to="/register">
-                <Button size="lg" className="bg-purple-600 hover:bg-purple-700 text-white px-12 py-6 text-lg">
+              <Link to="/register" className="inline-block w-full sm:w-auto">
+                <Button size="lg" className="w-full bg-purple-600 px-8 py-5 text-base text-white hover:bg-purple-700 sm:w-auto sm:px-12 sm:py-6 sm:text-lg">
                   Criar Conta Grátis
                 </Button>
               </Link>

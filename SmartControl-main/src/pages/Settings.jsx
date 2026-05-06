@@ -73,7 +73,7 @@ const Settings = () => {
       </Helmet>
 
       <DashboardLayout>
-        <div className="max-w-2xl mx-auto space-y-8">
+        <div className="mx-auto w-full max-w-2xl space-y-6 sm:space-y-8">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">Configurações</h1>
             <p className="text-gray-400">Gerencie suas preferências e integrações</p>
@@ -82,7 +82,7 @@ const Settings = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="gradient-card p-8 rounded-xl border border-purple-500/30 space-y-6"
+            className="gradient-card mobile-card space-y-6 rounded-xl border border-purple-500/30 p-4 sm:p-8"
           >
             <h2 className="text-xl font-bold text-white">Perfil</h2>
             
@@ -117,12 +117,12 @@ const Settings = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="gradient-card p-8 rounded-xl border border-purple-500/30 space-y-6"
+            className="gradient-card mobile-card space-y-6 rounded-xl border border-purple-500/30 p-4 sm:p-8"
           >
             <h2 className="text-xl font-bold text-white">Aparência</h2>
             
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
                 <p className="text-white font-medium">Tema do sistema</p>
                 <p className="text-gray-400 text-sm">
                   {isDark ? 'Modo escuro ativo' : 'Modo claro ativo'}
@@ -139,48 +139,48 @@ const Settings = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="gradient-card p-8 rounded-xl border border-purple-500/30 space-y-6"
+            className="gradient-card mobile-card space-y-6 rounded-xl border border-purple-500/30 p-4 sm:p-8"
           >
             <h2 className="text-xl font-bold text-white">Integrações</h2>
             
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-black/30 rounded-lg">
-                <div>
+              <div className="flex flex-col gap-4 rounded-lg bg-black/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <p className="text-white font-medium">Amazon Alexa</p>
                   <p className="text-gray-400 text-sm">Controle por voz</p>
                 </div>
                 <Button
                   onClick={() => handleIntegration('Alexa')}
                   variant="outline"
-                  className="border-purple-500/30"
+                  className="w-full border-purple-500/30 sm:w-auto"
                 >
                   Conectar
                 </Button>
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-black/30 rounded-lg">
-                <div>
+              <div className="flex flex-col gap-4 rounded-lg bg-black/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <p className="text-white font-medium">Google Home</p>
                   <p className="text-gray-400 text-sm">Assistente Google</p>
                 </div>
                 <Button
                   onClick={() => handleIntegration('Google Home')}
                   variant="outline"
-                  className="border-purple-500/30"
+                  className="w-full border-purple-500/30 sm:w-auto"
                 >
                   Conectar
                 </Button>
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-black/30 rounded-lg">
-                <div>
+              <div className="flex flex-col gap-4 rounded-lg bg-black/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <p className="text-white font-medium">NabuCasa</p>
                   <p className="text-gray-400 text-sm">Home Assistant Cloud</p>
                 </div>
                 <Button
                   onClick={() => handleIntegration('NabuCasa')}
                   variant="outline"
-                  className="border-purple-500/30"
+                  className="w-full border-purple-500/30 sm:w-auto"
                 >
                   Conectar
                 </Button>

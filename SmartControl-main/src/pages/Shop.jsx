@@ -68,17 +68,17 @@ const Shop = () => {
         <meta name="description" content="Adquira kits de automação DIY SmartControl. ESP32, sensores, válvulas e muito mais." />
       </Helmet>
 
-      <div className="min-h-screen bg-black">
+      <div className="mobile-wrap min-h-screen overflow-x-hidden bg-black">
         <Navbar />
 
-        <section className="pt-32 pb-20 px-4">
-          <div className="container mx-auto max-w-6xl">
+        <section className="px-3 pb-14 pt-28 sm:px-4 sm:pb-20 sm:pt-32">
+          <div className="container mx-auto w-full max-w-6xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-center mb-16"
+              className="mb-12 text-center sm:mb-16"
             >
-              <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+              <h1 className="mobile-title mb-4 text-3xl font-bold text-white sm:text-4xl md:text-5xl">
                 Kits DIY SmartControl
               </h1>
               <p className="text-xl text-gray-400">
@@ -86,28 +86,28 @@ const Shop = () => {
               </p>
             </motion.div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
               {products.map((product, index) => (
                 <motion.div
                   key={product.id}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="gradient-card rounded-xl border border-purple-500/30 overflow-hidden"
+                  className="gradient-card overflow-hidden rounded-xl border border-purple-500/30"
                 >
                   <img className="w-full h-48 object-cover" alt={product.name} src="https://images.unsplash.com/photo-1635865165118-917ed9e20936" />
                   
-                  <div className="p-6">
+                  <div className="p-4 sm:p-6">
                     <h3 className="text-xl font-bold text-white mb-2">{product.name}</h3>
                     <p className="text-gray-400 mb-4">{product.description}</p>
                     
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
                       <span className="text-2xl font-bold text-purple-400">
                         R$ {product.price.toFixed(2)}
                       </span>
                       <Button
                         onClick={() => addToCart(product)}
-                        className="bg-purple-600 hover:bg-purple-700"
+                        className="w-full bg-purple-600 hover:bg-purple-700 min-[420px]:w-auto"
                       >
                         <ShoppingCart className="w-4 h-4 mr-2" />
                         Adicionar
@@ -122,7 +122,7 @@ const Shop = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="mt-16 text-center gradient-card p-8 rounded-xl border border-purple-500/30"
+              className="gradient-card mt-12 rounded-xl border border-purple-500/30 p-5 text-center sm:mt-16 sm:p-8"
             >
               <h2 className="text-2xl font-bold text-white mb-4">
                 Precisa de ajuda para escolher?
@@ -135,7 +135,7 @@ const Shop = () => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Button className="bg-green-600 hover:bg-green-700">
+                <Button className="w-full bg-green-600 hover:bg-green-700 sm:w-auto">
                   Falar no WhatsApp
                 </Button>
               </a>

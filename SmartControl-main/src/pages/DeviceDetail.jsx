@@ -16,6 +16,23 @@ import { getDeviceModelLabel, getDeviceProtocolLabel, getDeviceProjectName, isDe
 import { applyHydroponicsCommandState, isHydroponicsDevice } from '@/lib/hydroponicsHeltec';
 import { backendUrl } from '@/lib/backend';
 import { subscribeBackendEvents } from '@/lib/realtimeEvents';
+import { sanitizeText } from '@/lib/security';
+
+const parseJsonField = (value) => {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+};
+
+const shouldRetryWithoutNewColumns = (error) => {
+  const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+  return message.includes('column') || message.includes('schema') || message.includes('cache');
+};
 
 const DeviceDetail = () => {
   const { id } = useParams();
@@ -182,17 +199,96 @@ const DeviceDetail = () => {
     if (!device) return;
     setSending(true);
 
-    const { error } = await supabase
-      .from('devices')
-      .update({
-        device_id: connectionData.device_id || null,
-        mac_address: connectionData.mac_address || null,
-        local_ip: connectionData.ip_address || null,
-        mdns_hostname: connectionData.mdns_hostname || null,
-        mqtt_topic: connectionData.mqtt_topic || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', device.id);
+    const safeDeviceId = sanitizeText(connectionData.device_id, 80).trim();
+    const safeMacAddress = sanitizeText(connectionData.mac_address, 40).trim();
+    const safeIpAddress = sanitizeText(connectionData.ip_address, 60).trim();
+    const safeMdnsHostname = sanitizeText(connectionData.mdns_hostname, 80).trim();
+    const safeMqttTopic = sanitizeText(connectionData.mqtt_topic, 140).trim();
+    const topics = buildMqttTopics({
+      client: device.user_id || user?.id,
+      project: getDeviceProjectName(device),
+      deviceId: safeDeviceId || device.device_id || device.id,
+      customTopic: safeMqttTopic,
+    });
+    const now = new Date().toISOString();
+    const nextConfiguration = {
+      ...parseJsonField(device.configuration),
+      mqtt_topics: topics,
+      connection_updated_at: now,
+    };
+    const updatePayload = {
+      device_id: safeDeviceId || null,
+      mac_address: safeMacAddress || null,
+      local_ip: safeIpAddress || null,
+      mdns_hostname: safeMdnsHostname || null,
+      mqtt_topic: topics.root,
+      configuration: nextConfiguration,
+      updated_at: now,
+    };
+
+    let data = null;
+    let error = null;
+
+    if (backendUrl) {
+      try {
+        const response = await fetch(`${backendUrl}/api/devices/${device.id}/connection`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({
+            device_id: safeDeviceId,
+            mac_address: safeMacAddress,
+            local_ip: safeIpAddress,
+            mdns_hostname: safeMdnsHostname,
+            mqtt_topic: safeMqttTopic,
+            user_id: user?.id,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (response.ok) {
+          data = payload.device;
+        } else {
+          error = { message: payload.error || 'API nao salvou os dados de conexao.' };
+        }
+      } catch (apiError) {
+        error = { message: 'Backend indisponivel para salvar a conexao.' };
+      }
+    }
+
+    if (!data) {
+      const result = await supabase
+        .from('devices')
+        .update(updatePayload)
+        .eq('id', device.id)
+        .eq('user_id', user?.id)
+        .select()
+        .single();
+
+      data = result.data;
+      error = result.error || null;
+
+      if (result.error && shouldRetryWithoutNewColumns(result.error)) {
+        const fallbackPayload = {
+          device_id: safeDeviceId || null,
+          mac_address: safeMacAddress || null,
+          mqtt_topic: topics.root,
+          updated_at: now,
+        };
+        const fallback = await supabase
+          .from('devices')
+          .update(fallbackPayload)
+          .eq('id', device.id)
+          .eq('user_id', user?.id)
+          .select()
+          .single();
+
+        data = fallback.data;
+        error = fallback.error;
+      }
+    }
 
     setSending(false);
 
@@ -200,9 +296,17 @@ const DeviceDetail = () => {
       toast({
         variant: 'destructive',
         title: 'Erro ao salvar',
-        description: 'Não foi possível atualizar os dados de conexão.',
+        description: error.message || 'Não foi possível atualizar os dados de conexão.',
       });
     } else {
+      if (data) setDevice(data);
+      setConnectionData({
+        device_id: data?.device_id || safeDeviceId,
+        mac_address: data?.mac_address || safeMacAddress,
+        ip_address: data?.local_ip || safeIpAddress,
+        mdns_hostname: data?.mdns_hostname || safeMdnsHostname,
+        mqtt_topic: data?.mqtt_topic || topics.root,
+      });
       toast({
         title: 'Dados atualizados',
         description: 'As informações de conexão foram salvas com sucesso.',
@@ -252,7 +356,7 @@ const DeviceDetail = () => {
       </Helmet>
 
       <DashboardLayout>
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
           <Button
             variant="ghost"
             onClick={() => navigate(-1)}
@@ -261,30 +365,39 @@ const DeviceDetail = () => {
             <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
           </Button>
 
-          <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+          {hydroponicsDevice && (
+            <HydroponicsDevicePanel
+              device={device}
+              topics={topics}
+              onCommand={sendDeviceCommand}
+              onConfig={(configPayload) => sendDeviceCommand({ command: 'remote_config', payload: configPayload, useConfigTopic: true })}
+            />
+          )}
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)] xl:gap-6">
             <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="gradient-card rounded-3xl border border-purple-500/30 p-8"
+              className="mobile-card order-2 rounded-2xl border border-purple-500/30 gradient-card p-4 sm:rounded-3xl sm:p-8 xl:order-1"
             >
               <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm uppercase tracking-[0.3em] text-purple-300">Detalhes do dispositivo</p>
-                  <h1 className="mt-3 text-4xl font-bold text-white">{device.name}</h1>
+                  <h1 className="mt-3 break-words text-2xl font-bold text-white sm:text-4xl">{device.name}</h1>
                   <p className="mt-2 text-gray-400 max-w-2xl">
                     Painel de controle do dispositivo, com informações de autenticação, MQTT em nuvem e telemetria.
                   </p>
                 </div>
-                <div className="rounded-3xl border border-purple-400/20 bg-black/30 p-5">
+                <div className="w-full rounded-2xl border border-purple-400/20 bg-black/30 p-4 sm:rounded-3xl sm:p-5 md:w-auto">
                   <p className="text-sm text-gray-400">Status de conexão</p>
                   <p className="mt-2 text-2xl font-bold text-white">{online ? 'Online' : 'Offline'}</p>
                   <p className="text-sm text-gray-500 mt-1">Última atualização: {device.last_heartbeat ? new Date(device.last_heartbeat).toLocaleString('pt-BR') : 'Nenhuma'}</p>
                 </div>
               </div>
 
-              <div className="mt-8 rounded-3xl border border-purple-500/20 bg-black/30 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
+              <div className="mt-6 rounded-2xl border border-purple-500/20 bg-black/30 p-4 sm:mt-8 sm:rounded-3xl sm:p-6">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-2">
                     <Wifi className="w-4 h-4 text-purple-300" />
                     <p className="text-sm uppercase tracking-[0.2em] text-gray-500">Dados de conexão</p>
                   </div>
@@ -299,7 +412,7 @@ const DeviceDetail = () => {
                       Editar
                     </Button>
                   ) : (
-                    <div className="flex gap-2">
+                    <div className="mobile-button-row flex gap-2 sm:flex-row">
                       <Button
                         variant="outline"
                         size="sm"
@@ -405,7 +518,7 @@ const DeviceDetail = () => {
                 )}
               </div>
 
-              <div className="mt-8 rounded-3xl border border-purple-500/20 bg-black/30 p-6">
+              <div className="mt-6 rounded-2xl border border-purple-500/20 bg-black/30 p-4 sm:mt-8 sm:rounded-3xl sm:p-6">
                 <div className="flex items-center gap-2 mb-3">
                   <ShieldCheck className="w-4 h-4 text-purple-300" />
                   <p className="text-sm uppercase tracking-[0.2em] text-gray-500">Tópicos MQTT</p>
@@ -430,7 +543,7 @@ const DeviceDetail = () => {
             <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="gradient-card rounded-3xl border border-purple-500/30 p-8"
+              className="mobile-card order-1 rounded-2xl border border-purple-500/30 gradient-card p-4 sm:rounded-3xl sm:p-8 xl:order-2"
             >
               <div className="flex items-center gap-3 text-gray-300 mb-6">
                 <Wifi className="w-5 h-5 text-purple-300" />
@@ -454,7 +567,7 @@ const DeviceDetail = () => {
                 </Button>
               </form>
 
-              <div className="mt-8 rounded-3xl border border-purple-500/20 bg-black/30 p-6">
+              <div className="mt-6 rounded-2xl border border-purple-500/20 bg-black/30 p-4 sm:mt-8 sm:rounded-3xl sm:p-6">
                 <div className="flex items-center gap-2 mb-3">
                   <Layers className="w-4 h-4 text-purple-300" />
                   <p className="text-sm uppercase tracking-[0.2em] text-gray-500">Integração</p>
@@ -465,15 +578,6 @@ const DeviceDetail = () => {
               </div>
             </motion.section>
           </div>
-
-          {hydroponicsDevice && (
-            <HydroponicsDevicePanel
-              device={device}
-              topics={topics}
-              onCommand={sendDeviceCommand}
-              onConfig={(configPayload) => sendDeviceCommand({ command: 'remote_config', payload: configPayload, useConfigTopic: true })}
-            />
-          )}
         </div>
       </DashboardLayout>
     </>

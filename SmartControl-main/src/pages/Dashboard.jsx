@@ -21,46 +21,46 @@ const StatCard = ({ icon: Icon, label, value, accent = 'text-purple-400', delay 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay }}
-    className="gradient-card p-5 sm:p-6 rounded-xl border border-purple-500/30 min-h-[150px]"
+    className="gradient-card mobile-card min-h-[104px] rounded-xl border border-purple-500/30 p-4 sm:min-h-[150px] sm:p-6"
   >
-    <div className="flex items-center justify-between">
-      <div>
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
         <p className="text-gray-400 text-sm">{label}</p>
-        <p className="text-3xl font-bold text-white mt-2">{value}</p>
+        <p className="text-2xl font-bold text-white mt-2 sm:text-3xl">{value}</p>
       </div>
-      <Icon className={`w-12 h-12 ${accent}`} />
+      <Icon className={`h-8 w-8 flex-none sm:h-12 sm:w-12 ${accent}`} />
     </div>
   </motion.div>
 );
 
-const ProjectCard = ({ project, selected, onOpen, index }) => (
+const ProjectCard = ({ project, selected, onOpenDevices, onOpenOverview, index }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: index * 0.08 }}
-    className={`gradient-card rounded-2xl border p-6 transition-all cursor-pointer ${
+    className={`gradient-card mobile-card cursor-pointer rounded-xl border p-4 transition-all sm:p-6 ${
       selected ? 'border-purple-400 shadow-lg shadow-purple-950/30' : 'border-purple-500/30 hover:border-purple-400/60'
     }`}
-    onClick={onOpen}
+    onClick={onOpenDevices}
   >
-    <div className="mb-5 flex items-start justify-between gap-4">
-      <div>
+    <div className="mb-5 flex items-start justify-between gap-3 sm:gap-4">
+      <div className="min-w-0">
         <p className="text-sm uppercase tracking-[0.2em] text-purple-300">Projeto</p>
         <button
           type="button"
-          onClick={onOpen}
-          className="mt-2 block text-left text-2xl font-bold text-white transition hover:text-purple-200"
+          onClick={onOpenDevices}
+          className="mt-2 block text-left text-xl font-bold text-white transition hover:text-purple-200 sm:text-2xl"
         >
           {project.name}
         </button>
         <p className="mt-2 text-sm leading-6 text-gray-400">{project.description}</p>
       </div>
-      <div className="rounded-2xl border border-purple-400/30 bg-purple-500/10 p-3">
+      <div className="flex-none rounded-2xl border border-purple-400/30 bg-purple-500/10 p-3">
         <Layers className="h-7 w-7 text-purple-300" />
       </div>
     </div>
 
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
       <div className="rounded-xl bg-black/30 p-3 text-center">
         <p className="text-2xl font-bold text-white">{project.totalDevices}</p>
         <p className="text-xs text-gray-500">dispositivos</p>
@@ -77,25 +77,85 @@ const ProjectCard = ({ project, selected, onOpen, index }) => (
 
     <div className="mt-5 space-y-2">
       {project.devices.slice(0, 3).map((device) => (
-        <div key={device.id} className="flex items-center justify-between rounded-xl bg-black/25 px-3 py-2">
-          <span className="truncate text-sm text-gray-300">{device.name}</span>
-          <span className={`ml-3 h-2 w-2 rounded-full ${isDeviceOnline(device) ? 'bg-green-400' : 'bg-gray-600'}`} />
+        <div key={device.id} className="flex items-center justify-between gap-3 rounded-xl bg-black/25 px-3 py-2">
+          <Link
+            to={`/devices/${device.id}`}
+            onClick={(event) => event.stopPropagation()}
+            className="truncate text-sm font-medium text-gray-300 transition hover:text-purple-200"
+          >
+            {device.name}
+          </Link>
+          <span className={`h-2 w-2 flex-none rounded-full ${isDeviceOnline(device) ? 'bg-green-400' : 'bg-gray-600'}`} />
         </div>
       ))}
     </div>
 
-    <Button onClick={onOpen} className="mt-5 w-full bg-purple-600 hover:bg-purple-700">
+    {project.devices.length > 3 && (
+      <p className="mt-3 text-xs text-gray-500">+{project.devices.length - 3} dispositivo(s) na lista completa</p>
+    )}
+
+    <Button
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpenOverview();
+      }}
+      className="mt-5 w-full bg-purple-600 hover:bg-purple-700"
+    >
       Abrir dashboard do projeto
       <ArrowRight className="ml-2 h-4 w-4" />
     </Button>
   </motion.div>
 );
 
-const ProjectDashboard = ({ project, onToggle, onDeviceCommand, onClose, userId }) => (
+const ProjectDeviceList = ({ project, onBack, onOpenOverview, onToggle }) => (
   <motion.section
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
-    className="rounded-2xl border border-purple-500/30 bg-black/30 p-4 sm:p-6"
+    className="space-y-5"
+  >
+    <div className="mobile-card rounded-xl border border-purple-500/30 bg-black/30 p-4 sm:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm uppercase tracking-[0.2em] text-purple-300">Dispositivos do projeto</p>
+          <h2 className="mt-2 text-2xl font-bold text-white sm:text-3xl">{project.name}</h2>
+          <p className="mt-2 text-sm leading-6 text-gray-400">{project.description}</p>
+        </div>
+        <div className="mobile-button-row flex flex-col gap-3 sm:flex-row">
+          <Button
+            type="button"
+            onClick={onBack}
+            variant="outline"
+            className="border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Projetos
+          </Button>
+          <Button type="button" onClick={onOpenOverview} className="bg-purple-600 hover:bg-purple-700">
+            Abrir dashboard do projeto
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {project.devices.map((device, index) => (
+        <DeviceCard
+          key={device.id}
+          device={{ ...device, detailUrl: `/devices/${device.id}` }}
+          onToggle={() => onToggle(device.id, device.status)}
+          index={index}
+        />
+      ))}
+    </div>
+  </motion.section>
+);
+
+const ProjectDashboard = ({ project, onToggle, onClose }) => (
+  <motion.section
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="mobile-card rounded-2xl border border-purple-500/30 bg-black/30 p-4 sm:p-6"
   >
     <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <div>
@@ -103,7 +163,7 @@ const ProjectDashboard = ({ project, onToggle, onDeviceCommand, onClose, userId 
         <h2 className="mt-2 text-3xl font-bold text-white">{project.name}</h2>
         <p className="mt-2 text-gray-400">{project.description}</p>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="mobile-button-row flex flex-col gap-3 sm:flex-row">
         <Button
           type="button"
           onClick={onClose}
@@ -111,7 +171,7 @@ const ProjectDashboard = ({ project, onToggle, onDeviceCommand, onClose, userId 
           className="border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar aos projetos
+          Voltar aos dispositivos
         </Button>
         <Link to="/add-device">
           <Button className="w-full bg-purple-600 hover:bg-purple-700 sm:w-auto">
@@ -130,22 +190,33 @@ const ProjectDashboard = ({ project, onToggle, onDeviceCommand, onClose, userId 
     </div>
 
     {project.devices.some(isHydroponicsDevice) && (
-      <div className="mb-8 space-y-5">
+      <div className="mb-8 space-y-4">
         <h3 className="text-xl font-bold text-white">Módulos oficiais SmartControl</h3>
-        {project.devices.filter(isHydroponicsDevice).map((device) => (
-          <HydroponicsDevicePanel
-            key={device.id}
-            device={device}
-            compact
-            topics={buildHydroponicsMqttTopics({ userId, projectName: project.name, device })}
-            onCommand={(commandPayload) => onDeviceCommand(device, commandPayload)}
-            onConfig={(configPayload) => onDeviceCommand(device, { command: 'remote_config', payload: configPayload, useConfigTopic: true })}
-          />
-        ))}
+        <div className="grid gap-4 md:grid-cols-2">
+          {project.devices.filter(isHydroponicsDevice).map((device) => (
+            <Link
+              key={device.id}
+              to={`/devices/${device.id}`}
+              className="gradient-card block rounded-xl border border-purple-500/30 p-5 transition hover:border-purple-400/60"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-white">{device.name}</p>
+                  <p className="mt-1 text-sm text-gray-400">Controle individual do módulo oficial</p>
+                </div>
+                <span className={`mt-2 h-2 w-2 rounded-full ${isDeviceOnline(device) ? 'bg-green-400' : 'bg-gray-600'}`} />
+              </div>
+              <div className="mt-4 inline-flex items-center text-sm font-semibold text-purple-300">
+                Abrir controle
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
     )}
 
-    <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
       <div>
         <h3 className="mb-4 text-xl font-bold text-white">Acionamentos rápidos</h3>
         <div className="grid gap-4 md:grid-cols-2">
@@ -186,12 +257,74 @@ const ProjectDashboard = ({ project, onToggle, onDeviceCommand, onClose, userId 
   </motion.section>
 );
 
+const ProjectDashboardGrouped = ({ project, onToggle, onDeviceCommand, onClose, userId }) => (
+  <motion.section
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="space-y-5"
+  >
+    <div className="mobile-card rounded-xl border border-purple-500/30 bg-black/30 p-4 sm:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm uppercase tracking-[0.2em] text-purple-300">Dashboard do projeto</p>
+          <h2 className="mt-2 text-2xl font-bold text-white sm:text-3xl">{project.name}</h2>
+          <p className="mt-2 text-sm leading-6 text-gray-400">
+            {project.totalDevices} dispositivo{project.totalDevices > 1 ? 's' : ''} registrado{project.totalDevices > 1 ? 's' : ''} nesta dashboard.
+          </p>
+        </div>
+        <div className="mobile-button-row flex flex-col gap-3 sm:flex-row">
+          <Button
+            type="button"
+            onClick={onClose}
+            variant="outline"
+            className="border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar aos dispositivos
+          </Button>
+          <Link to="/add-device">
+            <Button className="w-full bg-purple-600 hover:bg-purple-700 sm:w-auto">
+              <Plus className="mr-2 h-4 w-4" />
+              Adicionar dispositivo
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </div>
+
+    {project.devices.filter(isHydroponicsDevice).map((device) => (
+      <HydroponicsDevicePanel
+        key={device.id}
+        device={device}
+        compact
+        topics={buildHydroponicsMqttTopics({ userId, projectName: project.name, device })}
+        onCommand={(commandPayload) => onDeviceCommand(device, commandPayload)}
+        onConfig={(configPayload) => onDeviceCommand(device, { command: 'remote_config', payload: configPayload, useConfigTopic: true })}
+      />
+    ))}
+
+    {project.devices.some((device) => !isHydroponicsDevice(device)) && (
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {project.devices.filter((device) => !isHydroponicsDevice(device)).map((device, index) => (
+          <DeviceCard
+            key={device.id}
+            device={{ ...device, detailUrl: `/devices/${device.id}` }}
+            onToggle={() => onToggle(device.id, device.status)}
+            index={index}
+          />
+        ))}
+      </div>
+    )}
+  </motion.section>
+);
+
 const Dashboard = () => {
   const { user, session } = useAuth();
   const [devices, setDevices] = useState([]);
   const [sensors, setSensors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [projectView, setProjectView] = useState('projects');
   const optimisticDevicesRef = useRef(new Map());
 
   const mergeOptimisticDevices = (freshDevices = []) =>
@@ -292,6 +425,24 @@ const Dashboard = () => {
   const selectedProject = selectedProjectId ? projects.find((project) => project.id === selectedProjectId) : null;
   const displayName = getUserDisplayName(user);
   const onlineDevices = devices.filter(isDeviceOnline).length;
+  const openProjectDevices = (projectId) => {
+    setSelectedProjectId(projectId);
+    setProjectView('devices');
+  };
+  const openProjectOverview = (projectId) => {
+    setSelectedProjectId(projectId);
+    setProjectView('overview');
+  };
+  const closeProjectView = () => {
+    setSelectedProjectId('');
+    setProjectView('projects');
+  };
+
+  useEffect(() => {
+    if (selectedProjectId && projects.length > 0 && !selectedProject) {
+      closeProjectView();
+    }
+  }, [selectedProjectId, selectedProject, projects.length]);
 
   const handleDeviceToggle = async (deviceId, currentStatus) => {
     const { data, error } = await supabase
@@ -336,7 +487,7 @@ const Dashboard = () => {
       restoreDevice();
       toast({
         variant: 'destructive',
-        title: 'Backend não configurado',
+        title: 'Backend nao configurado',
         description: 'Configure VITE_BACKEND_URL para enviar comandos MQTT.',
       });
       return;
@@ -391,7 +542,7 @@ const Dashboard = () => {
     }
 
     toast({
-      title: commandPayload?.useConfigTopic ? 'ConfiguraÃ§Ã£o enviada' : 'Comando enviado',
+      title: commandPayload?.useConfigTopic ? 'Configuracao enviada' : 'Comando enviado',
       description: commandPayload?.useConfigTopic
         ? `Ajustes enviados para ${device.name}.`
         : `${commandPayload?.command} enviado para ${device.name}.`,
@@ -414,9 +565,9 @@ const Dashboard = () => {
       </Helmet>
 
       <DashboardLayout>
-        <div className="space-y-8 w-full">
-          <div className="mt-6 mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
+        <div className="w-full space-y-6 sm:space-y-8">
+          <div className="mb-6 mt-4 flex flex-col gap-4 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl min-w-0">
               <p className="text-sm uppercase tracking-[0.25em] text-purple-300">Olá, {displayName}</p>
               <h1 className="mt-2 text-3xl font-bold text-white md:text-4xl">
                 Sua central SmartControl
@@ -425,7 +576,7 @@ const Dashboard = () => {
                 Organize projetos, controle dispositivos e acompanhe sensores em uma visão única.
               </p>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="mobile-button-row flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link to="/add-device" className="w-full sm:w-auto">
                 <Button className="w-full bg-purple-600 hover:bg-purple-700 sm:w-auto">
                   <Plus className="w-4 h-4 mr-2" />
@@ -435,7 +586,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-6 lg:grid-cols-4">
             <StatCard icon={Zap} label="Dispositivos Ativos" value={devices.filter((device) => device.status).length} />
             <StatCard icon={Activity} label="Total de Dispositivos" value={devices.length} accent="text-green-400" delay={0.1} />
             <StatCard icon={Layers} label="Projetos" value={projects.length} accent="text-purple-300" delay={0.2} />
@@ -444,42 +595,45 @@ const Dashboard = () => {
 
           {projects.length > 0 && (
             <>
+              {!selectedProject && (
               <section>
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
                     <h2 className="text-2xl font-bold text-white">Projetos e linhas de automação</h2>
-                    <p className="mt-1 text-gray-400">Acesse um projeto inteiro ou controle cada dispositivo individualmente.</p>
+                    <p className="mt-1 text-gray-400">Escolha uma classe para ver os dispositivos ou abra a visão agrupada.</p>
                   </div>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {projects.map((project, index) => (
                     <ProjectCard
                       key={project.id}
                       project={project}
                       selected={selectedProject?.id === project.id}
-                      onOpen={() => setSelectedProjectId(project.id)}
+                      onOpenDevices={() => openProjectDevices(project.id)}
+                      onOpenOverview={() => openProjectOverview(project.id)}
                       index={index}
                     />
                   ))}
                 </div>
               </section>
-
-              {!selectedProject && (
-                <section className="rounded-2xl border border-purple-500/30 bg-black/30 p-6 text-gray-300">
-                  <h2 className="text-xl font-bold text-white">Escolha um projeto para abrir a dashboard</h2>
-                  <p className="mt-2 text-sm leading-6 text-gray-400">
-                    A visao inicial fica limpa. Clique no nome do projeto ou em Abrir dashboard do projeto para carregar o painel completo.
-                  </p>
-                </section>
               )}
 
-              {selectedProject && (
-                <ProjectDashboard
+              {selectedProject && projectView === 'devices' && (
+                <ProjectDeviceList
+                  project={selectedProject}
+                  onBack={closeProjectView}
+                  onOpenOverview={() => openProjectOverview(selectedProject.id)}
+                  onToggle={handleDeviceToggle}
+                />
+              )}
+
+              {selectedProject && projectView === 'overview' && (
+                <ProjectDashboardGrouped
                   project={selectedProject}
                   onToggle={handleDeviceToggle}
                   onDeviceCommand={handleDeviceCommand}
-                  onClose={() => setSelectedProjectId('')}
+                  onClose={() => openProjectDevices(selectedProject.id)}
                   userId={user?.id}
                 />
               )}

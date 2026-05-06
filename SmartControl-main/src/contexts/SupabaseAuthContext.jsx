@@ -17,6 +17,7 @@ const SESSION_BROWSER_KEY = 'smartcontrol.browser_session_active';
 const SESSION_ACTIVITY_KEY = 'smartcontrol.last_activity_at';
 const SESSION_IDLE_MS = 10 * 60 * 1000;
 const ACTIVITY_WRITE_THROTTLE_MS = 20 * 1000;
+let browserSessionRuntimeActive = false;
 
 const getStoredValue = (storage, key) => {
   if (typeof window === 'undefined') return '';
@@ -61,6 +62,8 @@ const isPasswordRecoveryUrl = () => {
 
   return (
     search.includes('reset_password=true') ||
+    search.includes('type=recovery') ||
+    search.includes('code=') ||
     hash.includes('type=recovery') ||
     hash.includes('access_token')
   );
@@ -70,6 +73,7 @@ const markSessionPolicy = (rememberSession) => {
   if (typeof window === 'undefined') return;
 
   const now = String(Date.now());
+  browserSessionRuntimeActive = true;
   setStoredValue(window.localStorage, SESSION_REMEMBER_KEY, rememberSession ? 'true' : 'false');
   setStoredValue(window.sessionStorage, SESSION_BROWSER_KEY, 'true');
   setStoredValue(window.localStorage, SESSION_ACTIVITY_KEY, now);
@@ -78,9 +82,15 @@ const markSessionPolicy = (rememberSession) => {
 const clearSessionPolicy = () => {
   if (typeof window === 'undefined') return;
 
+  browserSessionRuntimeActive = false;
   setStoredValue(window.localStorage, SESSION_REMEMBER_KEY, 'false');
   removeStoredValue(window.sessionStorage, SESSION_BROWSER_KEY);
   removeStoredValue(window.localStorage, SESSION_ACTIVITY_KEY);
+};
+
+const hasActiveBrowserSession = () => {
+  if (typeof window === 'undefined') return true;
+  return browserSessionRuntimeActive || getStoredValue(window.sessionStorage, SESSION_BROWSER_KEY) === 'true';
 };
 
 const readLastActivity = () => {
@@ -89,9 +99,23 @@ const readLastActivity = () => {
 };
 
 const getPasswordResetRedirectUrl = () => {
+  const isLocalUrl = (url) => {
+    try {
+      return ['localhost', '127.0.0.1', '::1'].includes(new URL(url).hostname);
+    } catch {
+      return false;
+    }
+  };
+
+  const toAbsoluteBaseUrl = (baseUrl) => {
+    if (/^https?:\/\//i.test(baseUrl)) return baseUrl;
+    const normalizedPath = baseUrl.startsWith('/') ? baseUrl : `/${baseUrl}`;
+    return `${window.location.origin}${normalizedPath}`;
+  };
+  const appendResetQuery = (baseUrl) => `${toAbsoluteBaseUrl(baseUrl).replace(/\/+$/, '')}/?reset_password=true`;
   const configuredUrl = import.meta.env.VITE_PASSWORD_RESET_REDIRECT_URL;
 
-  if (configuredUrl) {
+  if (configuredUrl && !(import.meta.env.PROD && isLocalUrl(configuredUrl))) {
     return configuredUrl;
   }
 
@@ -99,15 +123,19 @@ const getPasswordResetRedirectUrl = () => {
     return undefined;
   }
 
-  const publicUrl = import.meta.env.VITE_PUBLIC_APP_URL;
-  if (publicUrl) {
-    return `${publicUrl.replace(/\/+$/, '')}/login?reset_password=true`;
+  const frontendUrl =
+    import.meta.env.VITE_FRONTEND_URL ||
+    import.meta.env.VITE_BASE_URL ||
+    import.meta.env.VITE_PUBLIC_APP_URL;
+
+  if (frontendUrl && !(import.meta.env.PROD && isLocalUrl(frontendUrl))) {
+    return appendResetQuery(frontendUrl);
   }
 
   const basePath = import.meta.env.BASE_URL || '/';
   const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
 
-  return `${window.location.origin}${normalizedBasePath}login?reset_password=true`;
+  return `${window.location.origin}${normalizedBasePath}?reset_password=true`;
 };
 
 const shouldRetryPasswordResetWithoutRedirect = (error) => {
@@ -170,9 +198,7 @@ export const AuthProvider = ({ children }) => {
 
     if (currentSession) {
       const rememberSession = getRememberSessionPreference();
-      const hasBrowserSession = typeof window !== 'undefined'
-        ? getStoredValue(window.sessionStorage, SESSION_BROWSER_KEY) === 'true'
-        : true;
+      const hasBrowserSession = hasActiveBrowserSession();
 
       if (isPasswordRecoveryUrl()) {
         markSessionPolicy(false);
@@ -302,6 +328,7 @@ export const AuthProvider = ({ children }) => {
       return { error: { message } };
     }
 
+    setLoading(true);
     markSessionPolicy(rememberSession);
 
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -311,6 +338,7 @@ export const AuthProvider = ({ children }) => {
 
     if (error) {
       clearSessionPolicy();
+      setLoading(false);
       toast({
         variant: 'destructive',
         title: 'Nao foi possivel entrar',
@@ -342,7 +370,7 @@ export const AuthProvider = ({ children }) => {
       redirectTo ? { redirectTo } : undefined,
     );
 
-    if (result.error && redirectTo && shouldRetryPasswordResetWithoutRedirect(result.error)) {
+    if (result.error && redirectTo && !import.meta.env.PROD && shouldRetryPasswordResetWithoutRedirect(result.error)) {
       result = await supabase.auth.resetPasswordForEmail(normalizedEmail);
     }
 
@@ -376,9 +404,19 @@ export const AuthProvider = ({ children }) => {
       return { error: { message: passwordError } };
     }
 
-    const { error } = await supabase.auth.updateUser({
-      password,
-    });
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+    if (!currentSession) {
+      const message = 'Sessao de recuperacao expirada. Solicite um novo link de redefinicao.';
+      toast({
+        variant: 'destructive',
+        title: 'Link expirado',
+        description: message,
+      });
+      return { error: { message } };
+    }
+
+    const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
       toast({

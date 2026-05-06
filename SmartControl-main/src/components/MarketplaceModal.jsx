@@ -84,7 +84,7 @@ const MarketplaceModal = ({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`text-gray-300 hover:text-white transition-colors ${triggerClassName}`}
+        className={`shrink-0 text-sm text-gray-300 transition-colors hover:text-white sm:text-base ${triggerClassName}`}
       >
         {triggerLabel}
       </button>
@@ -92,7 +92,7 @@ const MarketplaceModal = ({
 
   const modal = open ? (
     <div
-          className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto px-4 py-8 sm:items-center"
+          className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto px-3 py-6 sm:items-center sm:px-4 sm:py-8"
           role="dialog"
           aria-modal="true"
           aria-labelledby="marketplace-title"
@@ -104,14 +104,14 @@ const MarketplaceModal = ({
             onClick={() => setOpen(false)}
           />
 
-          <div className="relative z-10 max-h-[calc(100vh-4rem)] w-full max-w-4xl overflow-y-auto rounded-3xl border border-purple-500/30 bg-black shadow-2xl shadow-purple-950/40">
+          <div className="relative z-10 max-h-[calc(100vh-3rem)] w-full max-w-4xl overflow-y-auto rounded-2xl border border-purple-500/30 bg-black shadow-2xl shadow-purple-950/40 sm:max-h-[calc(100vh-4rem)] sm:rounded-3xl">
             <div className="absolute inset-0 gradient-purple opacity-25" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(168,85,247,0.24),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_28%)]" />
 
-            <div className="relative p-6 sm:p-8">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-4 py-2 text-sm text-purple-200">
+            <div className="relative p-4 sm:p-8">
+              <div className="flex items-start justify-between gap-3 sm:gap-4">
+                <div className="min-w-0">
+                  <div className="theme-readable-pill mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-2 text-sm text-purple-200 sm:px-4">
                     <ShoppingBag className="h-4 w-4" />
                     Marketplace SmartControl
                   </div>
@@ -126,7 +126,7 @@ const MarketplaceModal = ({
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-full border border-white/10 bg-white/5 p-2 text-gray-300 transition hover:border-purple-400/60 hover:text-white"
+                  className="shrink-0 rounded-full border border-white/10 bg-white/5 p-2 text-gray-300 transition hover:border-purple-400/60 hover:text-white"
                   aria-label="Fechar"
                 >
                   <X className="h-5 w-5" />
@@ -141,11 +141,11 @@ const MarketplaceModal = ({
 
                   const content = (
                     <>
-                      <div className="flex items-center gap-3">
-                        <span className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="flex-none rounded-2xl border border-white/10 bg-white/5 p-3">
                           <Icon className={`h-6 w-6 ${option.accent}`} />
                         </span>
-                        <h3 className="text-lg font-semibold text-white">{option.title}</h3>
+                        <h3 className="min-w-0 text-lg font-semibold text-white">{option.title}</h3>
                       </div>
                       <p className="mt-4 text-sm leading-6 text-gray-400">{option.description}</p>
                       <span className="mt-5 inline-flex text-sm font-semibold text-purple-300 group-hover:text-purple-200">

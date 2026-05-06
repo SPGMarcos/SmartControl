@@ -61,27 +61,27 @@ const Admin = () => {
       </Helmet>
 
       <DashboardLayout>
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">Administração</h1>
             <p className="text-gray-400">Painel de controle administrativo</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid gap-4 md:grid-cols-3 md:gap-6">
             {stats.map((stat, index) => (
               <motion.div
                 key={index}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="gradient-card p-6 rounded-xl border border-purple-500/30"
+                className="gradient-card mobile-card rounded-xl border border-purple-500/30 p-4 sm:p-6"
               >
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
                     <p className="text-gray-400 text-sm">{stat.label}</p>
                     <p className="text-3xl font-bold text-white mt-2">{stat.value}</p>
                   </div>
-                  <stat.icon className={`w-12 h-12 ${stat.color}`} />
+                  <stat.icon className={`h-10 w-10 flex-none sm:h-12 sm:w-12 ${stat.color}`} />
                 </div>
               </motion.div>
             ))}
@@ -91,7 +91,7 @@ const Admin = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="gradient-card p-8 rounded-xl border border-purple-500/30"
+            className="gradient-card mobile-card rounded-xl border border-purple-500/30 p-4 sm:p-8"
           >
             <h2 className="text-xl font-bold text-white mb-6">Usuários Cadastrados</h2>
             <div className="overflow-x-auto">

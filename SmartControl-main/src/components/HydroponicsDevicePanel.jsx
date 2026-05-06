@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import {
   buildHydroponicsCommand,
+  buildBalancedHydroponicsTimerPayload,
   formatHydroponicsTimer,
   getHydroponicsLocalUrl,
   normalizeHydroponicsState,
@@ -41,9 +42,9 @@ const MetricBox = ({ label, value, icon: Icon }) => (
   <div className="rounded-2xl border border-purple-500/20 bg-black/30 p-4">
     <div className="mb-3 flex items-center gap-2 text-gray-400">
       <Icon className="h-4 w-4 text-purple-300" />
-      <span className="text-[11px] uppercase tracking-[0.18em]">{label}</span>
+      <span className="mobile-kicker text-[11px] uppercase tracking-[0.12em] sm:tracking-[0.18em]">{label}</span>
     </div>
-    <p className="text-2xl font-bold text-white">{value}</p>
+    <p className="break-words text-2xl font-bold text-white">{value}</p>
   </div>
 );
 
@@ -156,11 +157,12 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
   const handleTimerSave = () => {
     const tOn = Math.max(1, Number(timerValues.tOn) || 10);
     const tOff = Math.max(1, Number(timerValues.tOff) || 10);
+    const balancedPayload = buildBalancedHydroponicsTimerPayload(device, { tOn, tOff });
     if (!onConfig) {
-      sendCommand('set_timers', { tOn, tOff });
+      sendCommand('set_timers', balancedPayload);
       return;
     }
-    sendConfig({ tOn, tOff });
+    sendConfig(balancedPayload);
   };
 
   const handleFactoryReset = () => {
@@ -171,9 +173,9 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
   };
 
   return (
-    <section className="gradient-card rounded-3xl border border-purple-500/30 p-5 sm:p-7">
+    <section className="gradient-card mobile-card rounded-2xl border border-purple-500/30 p-4 sm:rounded-3xl sm:p-7">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+        <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300">
               <Waves className="h-4 w-4" />
@@ -181,7 +183,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
             </span>
             <StatusPill online={online} />
           </div>
-          <h2 className="text-2xl font-bold text-white sm:text-3xl">{device.name}</h2>
+          <h2 className="break-words text-2xl font-bold text-white sm:text-3xl">{device.name}</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
             Painel integrado do Heltec ESP32 LoRa mantendo a mesma lógica local: bomba, oxigenador,
             modo automático, temporizador ON/OFF, dashboard embarcada, OTA, WiFiManager e MQTT Cloud.
@@ -193,26 +195,26 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
           onClick={() => sendCommand('request_status')}
           disabled={busyCommand === 'request_status'}
           variant="outline"
-          className="border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white"
+          className="w-full border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white sm:w-auto"
         >
           <RefreshCw className="mr-2 h-4 w-4" />
           Sincronizar status
         </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-3xl border border-purple-500/20 bg-black/30 p-4 sm:p-6">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:gap-6">
+        <div className="rounded-2xl border border-purple-500/20 bg-black/30 p-4 sm:rounded-3xl sm:p-6">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <span className="rounded-2xl border border-blue-400/30 bg-blue-500/10 p-3">
                 <Gauge className="h-6 w-6 text-blue-300" />
               </span>
               <div>
-                <p className="text-xs uppercase tracking-[0.25em] text-gray-500">Estado do sistema</p>
+                <p className="mobile-kicker text-xs uppercase tracking-[0.12em] text-gray-500 sm:tracking-[0.25em]">Estado do sistema</p>
                 <p className="text-lg font-semibold text-white">Controle de fluxo</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-3 sm:justify-start">
               <span className="text-sm text-gray-400">Modo automático</span>
               <Switch
                 checked={state.t24}
@@ -254,10 +256,10 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                 </div>
               </div>
 
-              <div className="mb-6 rounded-3xl border border-blue-500/30 bg-blue-500/10 p-5 text-center">
-                <p className={`text-sm font-bold uppercase tracking-[0.25em] ${timerTone}`}>{timerLabel}</p>
+              <div className="mb-6 rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 text-center sm:rounded-3xl sm:p-5">
+                <p className={`mobile-kicker text-sm font-bold uppercase tracking-[0.12em] sm:tracking-[0.25em] ${timerTone}`}>{timerLabel}</p>
                 {effectiveAutomatic ? (
-                  <p className="mt-3 font-mono text-4xl sm:text-5xl font-bold text-white">
+                  <p className="mt-3 font-mono text-3xl font-bold text-white min-[380px]:text-4xl sm:text-5xl">
                     {formatHydroponicsTimer(visibleRemaining)}
                   </p>
                 ) : (
@@ -282,7 +284,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                 checked={displayPumpState}
                 disabled={manualControlsLocked}
                 onCheckedChange={(checked) => sendCommand('set_relay', { relay: 'pump', value: checked })}
-                className="scale-125"
+                className="shrink-0 scale-125"
               />
             </div>
 
@@ -298,7 +300,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                 checked={displayOxygenatorState}
                 disabled={manualControlsLocked}
                 onCheckedChange={(checked) => sendCommand('set_relay', { relay: 'oxygenator', value: checked })}
-                className="scale-125"
+                className="shrink-0 scale-125"
               />
             </div>
           </div>
@@ -339,7 +341,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
           </div>
 
           {!compact && (
-            <div className="rounded-3xl border border-purple-500/20 bg-black/30 p-5">
+            <div className="rounded-2xl border border-purple-500/20 bg-black/30 p-4 sm:rounded-3xl sm:p-5">
               <div className="mb-4 flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-purple-300" />
                 <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Integração MQTT</p>
@@ -362,7 +364,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
           )}
 
           {!compact && (
-            <div className="rounded-3xl border border-red-500/20 bg-red-500/5 p-5">
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 sm:rounded-3xl sm:p-5">
               <p className="text-sm font-semibold text-red-200">Manutenção avançada</p>
               <p className="mt-2 text-sm leading-6 text-gray-400">
                 O reset de fábrica deve ser usado apenas durante reinstalação, pois apaga Wi-Fi e configuração MQTT local.
@@ -371,7 +373,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                 type="button"
                 onClick={handleFactoryReset}
                 variant="outline"
-                className="h-12 mt-4 border-red-500/30 bg-black/30 text-red-200 hover:bg-red-500/10 hover:text-red-100 text-base font-semibold"
+                className="mt-4 h-12 w-full border-red-500/30 bg-black/30 text-base font-semibold text-red-200 hover:bg-red-500/10 hover:text-red-100"
               >
                 Restaurar padrão de fábrica
               </Button>

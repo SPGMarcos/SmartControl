@@ -131,6 +131,61 @@ export const formatHydroponicsTimer = (seconds = 0) => {
   return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 };
 
+export const getHydroponicsCycleSnapshot = (device = {}, now = Date.now()) => {
+  const state = normalizeHydroponicsState(device);
+  const lastSeenTime = state.lastSeen ? new Date(state.lastSeen).getTime() : now;
+  const ageSeconds = Number.isFinite(lastSeenTime)
+    ? Math.max(0, Math.floor((now - lastSeenTime) / 1000))
+    : 0;
+  let pumpActive = state.v1;
+  let remainingSeconds = Math.max(0, toNumber(state.rem, 0)) - ageSeconds;
+  let guard = 0;
+
+  while (state.t24 && remainingSeconds <= 0 && guard < 8) {
+    pumpActive = !pumpActive;
+    remainingSeconds += Math.max(1, toNumber(pumpActive ? state.tOn : state.tOff, 1)) * 60;
+    guard += 1;
+  }
+
+  const durationSeconds = Math.max(1, toNumber(pumpActive ? state.tOn : state.tOff, 1)) * 60;
+  const normalizedRemaining = state.t24 ? Math.max(0, remainingSeconds) : 0;
+
+  return {
+    automatic: state.t24,
+    phase: pumpActive ? 'on' : 'off',
+    pumpActive,
+    remainingSeconds: normalizedRemaining,
+    durationSeconds,
+    elapsedSeconds: state.t24
+      ? Math.min(durationSeconds, Math.max(0, durationSeconds - normalizedRemaining))
+      : 0,
+  };
+};
+
+export const buildBalancedHydroponicsTimerPayload = (device = {}, timers = {}, now = Date.now()) => {
+  const current = normalizeHydroponicsState(device);
+  const snapshot = getHydroponicsCycleSnapshot(device, now);
+  const tOn = Math.max(1, toNumber(timers.tOn, current.tOn));
+  const tOff = Math.max(1, toNumber(timers.tOff, current.tOff));
+  const nextDurationSeconds = Math.max(1, snapshot.phase === 'on' ? tOn : tOff) * 60;
+  const elapsedSeconds = Math.min(snapshot.elapsedSeconds, nextDurationSeconds);
+  const remainingSeconds = snapshot.automatic
+    ? Math.max(1, nextDurationSeconds - elapsedSeconds)
+    : 0;
+
+  return {
+    tOn,
+    tOff,
+    preserveCycle: true,
+    phase: snapshot.phase,
+    elapsedSeconds,
+    currentDurationSeconds: snapshot.durationSeconds,
+    newDurationSeconds: nextDurationSeconds,
+    remainingSeconds,
+    rem: remainingSeconds,
+  };
+};
+
 export const buildHydroponicsCommand = (command, payload = {}) => ({
   module: HYDROPONICS_MODULE_TYPE,
   command,
@@ -144,12 +199,21 @@ export const applyHydroponicsCommandState = (device = {}, commandPayload = {}) =
   const payload = commandPayload?.payload || {};
   const current = normalizeHydroponicsState(device);
   const patch = {};
+  const snapshot = getHydroponicsCycleSnapshot(device);
+  const getBalancedRemaining = (nextTOn = current.tOn, nextTOff = current.tOff) => {
+    const explicitRemaining = toNumber(payload.remainingSeconds ?? payload.remaining_seconds ?? payload.rem, NaN);
+    if (Number.isFinite(explicitRemaining)) return Math.max(0, explicitRemaining);
+
+    const nextDurationSeconds = Math.max(1, snapshot.phase === 'on' ? nextTOn : nextTOff) * 60;
+    const elapsedSeconds = Math.min(snapshot.elapsedSeconds, nextDurationSeconds);
+    return Math.max(1, nextDurationSeconds - elapsedSeconds);
+  };
 
   if (commandPayload?.useConfigTopic) {
     if (payload.tOn !== undefined) patch.tOn = toNumber(payload.tOn, current.tOn);
     if (payload.tOff !== undefined) patch.tOff = toNumber(payload.tOff, current.tOff);
     if (current.t24 && (payload.tOn !== undefined || payload.tOff !== undefined)) {
-      patch.rem = (current.v1 ? patch.tOn ?? current.tOn : patch.tOff ?? current.tOff) * 60;
+      patch.rem = getBalancedRemaining(patch.tOn ?? current.tOn, patch.tOff ?? current.tOff);
     }
   }
 
@@ -174,25 +238,23 @@ export const applyHydroponicsCommandState = (device = {}, commandPayload = {}) =
   if (command === 'set_timers') {
     patch.tOn = toNumber(payload.tOn, current.tOn);
     patch.tOff = toNumber(payload.tOff, current.tOff);
-    patch.rem = current.t24 ? (current.v1 ? patch.tOn : patch.tOff) * 60 : 0;
+    patch.rem = current.t24 ? getBalancedRemaining(patch.tOn, patch.tOff) : 0;
   }
 
   if (Object.keys(patch).length === 0) return device;
 
   const now = new Date().toISOString();
+  const previousLastState = parseJsonField(device.last_state);
   const lastState = {
-    ...parseJsonField(device.last_state),
-    online: true,
-    last_seen: now,
+    ...previousLastState,
+    pending_command: command || (commandPayload?.useConfigTopic ? 'set_config' : previousLastState.pending_command),
+    pending_command_at: now,
     ...patch,
   };
 
   return {
     ...device,
-    online: true,
-    connection_status: 'online',
     status: typeof patch.v1 === 'boolean' ? patch.v1 : device.status,
-    last_heartbeat: now,
     updated_at: now,
     last_state: lastState,
     telemetry: {

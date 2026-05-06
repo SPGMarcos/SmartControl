@@ -28,24 +28,23 @@ export const validateEmail = (email = '') => {
 };
 
 export const validatePassword = (password = '') => {
-  if (password.length < PASSWORD_MIN_LENGTH) {
-    return `A senha precisa ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`;
-  }
-
-  if (!/[A-Z]/.test(password)) {
-    return 'Inclua pelo menos uma letra maiúscula.';
-  }
-
-  if (!/[a-z]/.test(password)) {
-    return 'Inclua pelo menos uma letra minúscula.';
-  }
-
-  if (!/[0-9]/.test(password)) {
-    return 'Inclua pelo menos um número.';
-  }
-
-  return '';
+  const missingRequirements = getPasswordValidationErrors(password);
+  return missingRequirements.length ? `A senha precisa ter ${missingRequirements.join(', ')}.` : '';
 };
+
+export const getPasswordValidationErrors = (password = '') => {
+  const errors = [];
+
+  if (password.length < PASSWORD_MIN_LENGTH) errors.push(`pelo menos ${PASSWORD_MIN_LENGTH} caracteres`);
+  if (!/[A-Z]/.test(password)) errors.push('uma letra maiuscula');
+  if (!/[a-z]/.test(password)) errors.push('uma letra minuscula');
+  if (!/[0-9]/.test(password)) errors.push('um numero');
+
+  return errors;
+};
+
+export const PASSWORD_REQUIREMENTS_TEXT =
+  `Use pelo menos ${PASSWORD_MIN_LENGTH} caracteres, uma letra maiuscula, uma letra minuscula e um numero.`;
 
 export const validateDisplayName = (name = '') => {
   const safeName = sanitizeText(name, 80);

@@ -63,7 +63,7 @@ const Register = () => {
         <meta name="description" content="Crie sua conta SmartControl e comece a automatizar seus dispositivos IoT." />
       </Helmet>
 
-      <div className="min-h-screen bg-black flex items-center justify-center px-4">
+      <div className="mobile-wrap flex min-h-screen items-center justify-center overflow-x-hidden bg-black px-3 sm:px-4">
         <div className="absolute inset-0 gradient-purple opacity-30"></div>
         <ThemeToggle className="fixed right-4 top-4 z-20" />
 
@@ -73,7 +73,7 @@ const Register = () => {
           transition={{ duration: 0.5 }}
           className="w-full max-w-md relative z-10"
         >
-          <div className="gradient-card p-8 rounded-2xl border border-purple-500/30">
+          <div className="gradient-card mobile-card rounded-2xl border border-purple-500/30 p-5 sm:p-8">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-white mb-2">
                 Smart<span className="text-purple-400">Control</span>

@@ -44,22 +44,22 @@ const DeviceCard = ({ device, onToggle, onDelete, index = 0, showDelete }) => {
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1 }}
-      className="gradient-card p-6 rounded-xl border border-purple-500/30 hover:border-purple-500/50 transition-all"
+      className="gradient-card mobile-card rounded-xl border border-purple-500/30 p-4 transition-all hover:border-purple-500/50 sm:p-6"
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className={`p-3 rounded-lg ${device.status ? 'bg-purple-600' : 'bg-gray-700'}`}>
-            <Icon className="w-6 h-6 text-white" />
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className={`flex-none rounded-lg p-3 ${device.status ? 'bg-purple-600' : 'bg-gray-700'}`}>
+            <Icon className="h-6 w-6 text-white" />
           </div>
-          <div>
+          <div className="min-w-0">
               {device.detailUrl ? (
-                <Link to={device.detailUrl} className="text-lg font-bold text-white hover:text-purple-300 transition">
+                <Link to={device.detailUrl} className="block truncate text-lg font-bold text-white transition hover:text-purple-300">
                   {device.name}
                 </Link>
               ) : (
-                <h3 className="text-lg font-bold text-white">{device.name}</h3>
+                <h3 className="truncate text-lg font-bold text-white">{device.name}</h3>
               )}
-            <p className="text-gray-400 text-sm">{getDeviceProjectName(device)}</p>
+            <p className="truncate text-sm text-gray-400">{getDeviceProjectName(device)}</p>
           </div>
         </div>
         {showDelete && (
@@ -67,14 +67,14 @@ const DeviceCard = ({ device, onToggle, onDelete, index = 0, showDelete }) => {
             variant="ghost"
             size="icon"
             onClick={handleDeleteClick}
-            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            className="shrink-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
           >
             <Trash2 className="w-4 h-4" />
           </Button>
         )}
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <span className="text-gray-400 text-sm">
             {device.status ? 'Ligado' : 'Desligado'}
@@ -87,22 +87,23 @@ const DeviceCard = ({ device, onToggle, onDelete, index = 0, showDelete }) => {
         <Switch
           checked={Boolean(device.status)}
           onCheckedChange={() => onToggle(device.id)}
+          className="shrink-0"
         />
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-purple-500/20 pt-4">
+      <div className="mt-4 grid grid-cols-1 gap-3 border-t border-purple-500/20 pt-4 min-[420px]:grid-cols-2">
         <div className="rounded-lg bg-black/30 p-3">
           <p className="text-[11px] uppercase tracking-wide text-gray-500">Hardware</p>
-          <p className="mt-1 text-sm text-gray-200">{getDeviceModelLabel(device)}</p>
+          <p className="mt-1 break-words text-sm text-gray-200">{getDeviceModelLabel(device)}</p>
         </div>
         <div className="rounded-lg bg-black/30 p-3">
           <p className="text-[11px] uppercase tracking-wide text-gray-500">Protocolo</p>
-          <p className="mt-1 text-sm text-gray-200">{getDeviceProtocolLabel(device)}</p>
+          <p className="mt-1 break-words text-sm text-gray-200">{getDeviceProtocolLabel(device)}</p>
         </div>
       </div>
 
       <div className="mt-4 border-t border-purple-500/20 pt-4">
-        <p className="text-gray-500 text-xs">
+        <p className="break-words text-xs text-gray-500">
           Última conexão: {lastConnection ? new Date(lastConnection).toLocaleString('pt-BR') : 'Aguardando telemetria'}
         </p>
       </div>

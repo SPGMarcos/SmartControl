@@ -52,10 +52,36 @@
 @layer base {
   * {
     @apply border-border;
+    box-sizing: border-box;
+    min-width: 0;
   }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    max-width: 100%;
   }
 }
 
@@ -147,6 +173,92 @@
 }
 
 @layer components {
+  .mobile-wrap,
+  .mobile-wrap :where(h1, h2, h3, h4, p, span, a, button, label) {
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 640px) {
+    .container {
+      width: 100%;
+      max-width: 100%;
+      padding-left: 0.875rem;
+      padding-right: 0.875rem;
+    }
+
+    .gradient-card {
+      max-width: 100%;
+    }
+
+    .mobile-card {
+      border-radius: 1rem;
+      padding: 1rem;
+    }
+
+    .mobile-title {
+      font-size: clamp(1.75rem, 9vw, 2.5rem);
+      line-height: 1.08;
+    }
+
+    .mobile-section-title {
+      font-size: clamp(1.5rem, 7.5vw, 2rem);
+      line-height: 1.12;
+    }
+
+    .mobile-kicker {
+      letter-spacing: 0.08em !important;
+      line-height: 1.45;
+    }
+
+    .tracking-\[0\.18em\],
+    .tracking-\[0\.2em\],
+    .tracking-\[0\.22em\],
+    .tracking-\[0\.25em\],
+    .tracking-\[0\.3em\] {
+      letter-spacing: 0.08em !important;
+      line-height: 1.45;
+    }
+
+    .text-5xl,
+    .text-4xl {
+      font-size: 1.875rem !important;
+      line-height: 1.12 !important;
+    }
+
+    .text-3xl {
+      font-size: 1.625rem !important;
+      line-height: 1.16 !important;
+    }
+
+    .text-2xl {
+      font-size: 1.375rem !important;
+      line-height: 1.2 !important;
+    }
+
+    .text-xl {
+      font-size: 1.0625rem !important;
+      line-height: 1.55 !important;
+    }
+
+    button,
+    .button,
+    [role='button'] {
+      white-space: normal;
+    }
+
+    .mobile-button-row {
+      width: 100%;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .mobile-button-row > *,
+    .mobile-button-row button,
+    .mobile-button-row a {
+      width: 100%;
+    }
+  }
+
   .light .gradient-purple {
     background: linear-gradient(135deg, rgba(75, 0, 130, 0.18) 0%, rgba(216, 199, 239, 0.92) 100%);
   }
@@ -193,6 +305,12 @@
     background-color: rgba(255, 255, 255, 0.62) !important;
   }
 
+  .light .bg-white\/\[0\.04\],
+  .light .bg-white\/5,
+  .light .bg-white\/10 {
+    background-color: rgba(255, 255, 255, 0.58) !important;
+  }
+
   .light .from-black {
     --tw-gradient-from: #f8f5fb var(--tw-gradient-from-position) !important;
     --tw-gradient-to: rgba(248, 245, 251, 0) var(--tw-gradient-to-position) !important;
@@ -235,6 +353,24 @@
     color: #7b7088 !important;
   }
 
+  .light .hover\:text-white:hover,
+  .light .hover\:text-gray-100:hover,
+  .light .hover\:text-gray-200:hover {
+    color: #17111f !important;
+  }
+
+  .light .border-purple-500\/30,
+  .light .border-purple-500\/20,
+  .light .border-purple-400\/30,
+  .light .border-white\/10 {
+    border-color: rgba(75, 0, 130, 0.24) !important;
+  }
+
+  .light .border-gray-600,
+  .light .border-gray-500\/30 {
+    border-color: rgba(98, 86, 110, 0.26) !important;
+  }
+
   .light .bg-purple-600,
   .light .hover\:bg-purple-700:hover {
     color: #ffffff !important;
@@ -245,6 +381,33 @@
   .light .bg-purple-700.text-white,
   .light .bg-purple-700 .text-white {
     color: #ffffff !important;
+  }
+
+  .light .bg-purple-600.hover\:bg-purple-700:hover,
+  .light .bg-blue-600.hover\:bg-blue-700:hover,
+  .light .bg-red-600.hover\:bg-red-700:hover {
+    color: #ffffff !important;
+  }
+
+  .light .text-green-300,
+  .light .text-green-400 {
+    color: #15803d !important;
+  }
+
+  .light .text-blue-300,
+  .light .text-blue-400 {
+    color: #1d4ed8 !important;
+  }
+
+  .light .text-red-200,
+  .light .text-red-300,
+  .light .text-red-400 {
+    color: #b91c1c !important;
+  }
+
+  .light .text-amber-300,
+  .light .text-amber-400 {
+    color: #a16207 !important;
   }
 
   .light input,
@@ -278,6 +441,16 @@
   }
 
   .light .theme-toggle svg {
+    color: #4B0082 !important;
+  }
+
+  .light .theme-readable-pill {
+    background-color: rgba(255, 255, 255, 0.72) !important;
+    border-color: rgba(75, 0, 130, 0.32) !important;
+    color: #3b0a5f !important;
+  }
+
+  .light .theme-readable-pill svg {
     color: #4B0082 !important;
   }
 }

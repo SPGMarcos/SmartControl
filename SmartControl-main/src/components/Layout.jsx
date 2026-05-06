@@ -5,10 +5,10 @@ import Footer from './Footer.jsx';
 
 const Layout = ({ children }) => {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="mobile-wrap min-h-screen overflow-x-hidden bg-background text-foreground">
       <Navbar />
       <div className="gradient-purple w-full h-[300px] absolute top-0 -z-10 opacity-50" />
-      <main className="container mx-auto px-4 py-8 relative">
+      <main className="container relative mx-auto w-full max-w-full px-3 py-6 sm:px-4 sm:py-8">
         {children}
       </main>
       <Footer />

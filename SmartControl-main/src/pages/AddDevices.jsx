@@ -259,7 +259,7 @@ const AddDevice = () => {
       </Helmet>
 
       <DashboardLayout>
-        <div className="max-w-3xl mx-auto">
+        <div className="mx-auto w-full max-w-3xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -272,10 +272,10 @@ const AddDevice = () => {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="gradient-card p-8 rounded-xl border border-purple-500/30 space-y-6">
-              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-6">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div>
+            <form onSubmit={handleSubmit} className="gradient-card mobile-card space-y-6 rounded-xl border border-purple-500/30 p-4 sm:p-8">
+              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
                     <h3 className="text-lg font-semibold text-white">Descoberta automática de dispositivos</h3>
                     <p className="text-sm text-gray-400 mt-1">Se seu ESP está conectado ao MQTT, clique para descobri-lo automaticamente.</p>
                   </div>
@@ -283,7 +283,7 @@ const AddDevice = () => {
                     type="button"
                     onClick={handleDiscoverDevices}
                     disabled={isDiscovering}
-                    className="whitespace-nowrap bg-blue-600 hover:bg-blue-700 shrink-0"
+                    className="w-full shrink-0 bg-blue-600 hover:bg-blue-700 sm:w-auto"
                   >
                     <Search className="w-4 h-4 mr-2" />
                     {isDiscovering ? 'Buscando...' : 'Descobrir agora'}
@@ -298,14 +298,14 @@ const AddDevice = () => {
                         key={device.device_id}
                         type="button"
                         onClick={() => handleSelectDiscoveredDevice(device)}
-                        className={`w-full text-left p-3 rounded-lg border transition-all ${
+                        className={`w-full rounded-lg border p-3 text-left transition-all ${
                           selectedDiscoveredDevice === device.device_id
                             ? 'border-blue-400 bg-blue-500/20'
                             : 'border-gray-600 bg-black/30 hover:border-blue-500/50'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
+                        <div className="flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
+                          <div className="min-w-0">
                             <p className="text-white font-medium">{device.device_id}</p>
                             <p className="text-xs text-gray-400">{device.ip} • {device.mac_address}</p>
                           </div>
@@ -381,7 +381,7 @@ const AddDevice = () => {
               </div>
 
               {showAdvanced && (
-                <div className="space-y-6 rounded-2xl border border-purple-500/20 bg-black/30 p-6">
+                  <div className="space-y-6 rounded-2xl border border-purple-500/20 bg-black/30 p-4 sm:p-6">
                   <p className="text-sm text-gray-400">
                     Estas informações são opcionais. Se você estiver usando firmware e backend SmartControl recentes, elas serão preenchidas automaticamente.
                   </p>

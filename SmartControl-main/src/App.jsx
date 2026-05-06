@@ -16,12 +16,20 @@ function PasswordRecoveryRedirect() {
   const navigate = useNavigate();
 
   React.useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
     const isRecoveryFlow =
-      location.hash.includes('type=recovery') || location.search.includes('reset_password=true');
+      searchParams.get('reset_password') === 'true' ||
+      searchParams.get('type') === 'recovery' ||
+      searchParams.has('code') ||
+      searchParams.has('access_token') ||
+      hashParams.get('type') === 'recovery' ||
+      hashParams.has('access_token');
     const isLoginPage = location.pathname.endsWith('/login');
 
     if (isRecoveryFlow && !isLoginPage) {
-      navigate(`/login?reset_password=true${location.hash}`, { replace: true });
+      searchParams.set('reset_password', 'true');
+      navigate(`/login?${searchParams.toString()}${location.hash}`, { replace: true });
     }
   }, [location.hash, location.pathname, location.search, navigate]);
 
