@@ -65,6 +65,7 @@ export const projectTemplates = [
 
 export const deviceModelOptions = [
   { value: 'esp32', label: 'ESP32' },
+  { value: 'esp32_devkit_hydroponics', label: 'ESP32 padrão' },
   { value: 'esp8266', label: 'ESP8266' },
   { value: 'esp01', label: 'ESP-01' },
   { value: 'esp32_lora', label: 'ESP32 LoRa' },
@@ -90,6 +91,27 @@ const normalize = (value = '') =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+
+const parseJsonField = (value) => {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+};
+
+const firstText = (...values) => {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+
+  return '';
+};
 
 export const getUserDisplayName = (user) => {
   const metadataName = user?.user_metadata?.full_name || user?.user_metadata?.name;
@@ -123,7 +145,26 @@ export const getDeviceProjectName = (device) => {
 };
 
 export const getDeviceModelLabel = (device) => {
-  const value = device?.device_model || device?.model || device?.hardware || device?.board;
+  const configuration = parseJsonField(device?.configuration);
+  const lastState = parseJsonField(device?.last_state);
+  const telemetry = parseJsonField(device?.telemetry);
+  const hardwareIdentity = configuration.hardware_identity || {};
+  const dynamicLabel = firstText(
+    telemetry.modelo,
+    telemetry.model,
+    lastState.modelo,
+    lastState.model,
+    hardwareIdentity.modelo,
+    telemetry.hardware,
+    lastState.hardware,
+    hardwareIdentity.hardware,
+    device?.hardware,
+    device?.hardware_version,
+  );
+
+  if (dynamicLabel) return dynamicLabel;
+
+  const value = device?.device_model || device?.model || device?.board;
   const option = deviceModelOptions.find((item) => item.value === value);
 
   return option?.label || value || 'SmartControl IoT';

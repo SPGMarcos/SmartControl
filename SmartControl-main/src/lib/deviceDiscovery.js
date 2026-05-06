@@ -45,18 +45,29 @@ export const getDiscoveredDevice = async (deviceId) => {
 export const mapDiscoveredDataToForm = (discoveredData) => {
   if (!discoveredData) return {};
 
+  const isHydroponics = discoveredData.module?.includes('hydroponics');
+  const hardwareText = [
+    discoveredData.modelo,
+    discoveredData.model,
+    discoveredData.hardware,
+    discoveredData.hardware_version,
+    discoveredData.module,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const isHeltecLora = discoveredData.lora === true || /heltec|lora/i.test(hardwareText);
+
   return {
     deviceId: discoveredData.device_id || '',
     macAddress: discoveredData.mac_address || '',
     firmwareVersion: discoveredData.firmware_version || '',
-    hardwareVersion: discoveredData.hardware_version || '',
+    hardwareVersion: discoveredData.hardware || discoveredData.hardware_version || '',
     localIp: discoveredData.ip || '',
     mdnsHostname: discoveredData.mdns || '',
     mqttTopic: discoveredData.topic_root || '',
-    // Se for módulo de hidroponia, seleciona o tipo correto
-    ...(discoveredData.module && discoveredData.module.includes('hydroponics') && {
+    ...(isHydroponics && {
       type: 'hydroponics',
-      deviceModel: 'heltec_esp32_lora_hydroponics',
+      deviceModel: isHeltecLora ? 'heltec_esp32_lora_hydroponics' : 'esp32',
       projectName: 'Hidroponia inteligente',
     }),
   };

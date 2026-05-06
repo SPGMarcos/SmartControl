@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
@@ -12,11 +12,9 @@ import {
   Settings,
   LogOut,
   Menu,
-  X,
   Shield,
   ShoppingBag,
-  ChevronLeft,
-  ChevronRight
+  Layers,
 } from 'lucide-react';
 import { getUserDisplayName } from '@/lib/deviceProjects';
 
@@ -24,29 +22,45 @@ const DashboardLayout = ({ children }) => {
   const { user, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const contentMarginClass = sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64';
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  const menuItems = [
-    { icon: Home, label: 'Home', path: '/' },
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: Zap, label: 'Dispositivos', path: '/devices' },
-    { icon: ShoppingBag, label: 'Loja', path: '/shop' },
-    { icon: Plus, label: 'Adicionar', path: '/add-device' },
-    { icon: Settings, label: 'Configurações', path: '/settings' },
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    if (mediaQuery.matches) setIsSidebarOpen(false);
+  }, []);
+
+  const menuGroups = [
+    {
+      heading: 'Navegacao',
+      items: [
+        { icon: Home, label: 'Home', path: '/' },
+        { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+        { icon: Layers, label: 'Projetos', path: '/dashboard' },
+        { icon: ShoppingBag, label: 'Loja', path: '/shop' },
+      ],
+    },
+    {
+      heading: 'Gerenciamento',
+      items: [
+        { icon: Zap, label: 'Dispositivos', path: '/devices' },
+        { icon: Plus, label: 'Adicionar', path: '/add-device' },
+        { icon: Settings, label: 'Configuracoes', path: '/settings' },
+      ],
+    },
   ];
 
   const userRole = user?.app_metadata?.role || user?.user_metadata?.role || user?.role;
 
   if (userRole === 'admin') {
-    menuItems.push({ icon: Shield, label: 'Admin', path: '/admin' });
+    menuGroups[1].items.push({ icon: Shield, label: 'Admin', path: '/admin' });
   }
 
   const handleLogout = async () => {
     await signOut();
     navigate('/');
   };
+
+  const toggleSidebar = () => setIsSidebarOpen((current) => !current);
 
   const isActivePath = (path) =>
     path === '/'
@@ -60,95 +74,91 @@ const DashboardLayout = ({ children }) => {
         : 'text-gray-400 hover:bg-purple-600/20 hover:text-white'
     }`;
 
-  const HEADER_HEIGHT = 64; // px
   const displayName = getUserDisplayName(user);
 
   return (
-    <div className="mobile-wrap flex min-h-screen max-w-full overflow-x-hidden bg-black">
-      {/* Sidebar */}
-      <aside
-        className={`fixed top-0 left-0 h-full bg-gradient-to-b from-gray-900 to-black border-r border-purple-500/30 z-50 transform transition-all duration-300 overflow-y-auto pb-8 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 ${
-          sidebarCollapsed ? 'w-16' : 'w-64'
-        }`}
-        style={{ paddingTop: HEADER_HEIGHT }}
-      >
-        <div className="p-6 pt-10">
-          <div className="flex items-center justify-between mb-10 mt-2">
-            <h1 className={`text-2xl font-bold text-white ${sidebarCollapsed ? 'hidden' : ''}`}>
-              Smart<span className="text-purple-400">Control</span>
-            </h1>
-            <Button
-              variant="ghost"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="text-gray-400 hover:text-white lg:block hidden"
-              aria-label={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
-            >
-              {sidebarCollapsed ? (
-                <ChevronRight className="w-5 h-5" />
-              ) : (
-                <ChevronLeft className="w-5 h-5" />
-              )}
-            </Button>
-          </div>
+    <div className={`dashboard-shell mobile-wrap ${isSidebarOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
+      {isSidebarOpen && (
+        <button
+          type="button"
+          className="sidebar-overlay"
+          onClick={() => setIsSidebarOpen(false)}
+          aria-label="Fechar menu lateral"
+        />
+      )}
 
-          <nav className="space-y-2">
-            {menuItems.map((item) => {
-              const isActive = isActivePath(item.path);
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-purple-600 text-white'
-                      : 'text-gray-400 hover:bg-purple-600/20 hover:text-white'
-                  } ${sidebarCollapsed ? 'justify-center px-2' : ''}`}
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span className={sidebarCollapsed ? 'hidden' : ''}>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : 'collapsed'}`}>
+        <div className="sidebar-header">
+          <Link
+            to="/"
+            className="logo"
+            onClick={() => {
+              if (window.matchMedia('(max-width: 1023px)').matches) setIsSidebarOpen(false);
+            }}
+          >
+            <span>Smart</span>
+            <span className="text-purple-400">Control</span>
+          </Link>
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="sidebar-toggle"
+            aria-label={isSidebarOpen ? 'Recolher menu lateral' : 'Abrir menu lateral'}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
 
-          <div className="absolute bottom-6 left-6 right-6">
-            <div className="gradient-card p-4 rounded-lg border border-purple-500/30 mb-4">
-              <p className="text-white font-medium">{displayName}</p>
-              <p className="text-gray-400 text-sm">Conta SmartControl</p>
+        <nav className="sidebar-menu">
+          {menuGroups.map((group) => (
+            <div key={group.heading} className="sidebar-group">
+              <p className="sidebar-heading">{group.heading}</p>
+              {group.items.map((item) => {
+                const isActive = isActivePath(item.path);
+                return (
+                  <Link
+                    key={`${group.heading}-${item.label}`}
+                    to={item.path}
+                    onClick={() => {
+                      if (window.matchMedia('(max-width: 1023px)').matches) setIsSidebarOpen(false);
+                    }}
+                    title={!isSidebarOpen ? item.label : undefined}
+                    className={`sidebar-item ${isActive ? 'active' : ''}`}
+                  >
+                    <item.icon className="sidebar-icon" />
+                    <span className="sidebar-text">{item.label}</span>
+                  </Link>
+                );
+              })}
             </div>
-            <Button
-              onClick={handleLogout}
-              variant="outline"
-              className="w-full border-purple-500/30 bg-black/30 text-gray-300 hover:bg-red-500/10 hover:text-white"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sair
-            </Button>
+          ))}
+        </nav>
+
+        <div className="sidebar-account">
+          <div className="sidebar-user">
+            <p>{displayName}</p>
+            <span>Conta SmartControl</span>
           </div>
+          <button type="button" onClick={handleLogout} className="sidebar-item sidebar-logout" title="Sair">
+            <LogOut className="sidebar-icon" />
+            <span className="sidebar-text">Sair</span>
+          </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Header */}
-        <header
-          className="fixed top-0 left-0 right-0 lg:left-64 bg-black/90 backdrop-blur-lg border-b border-purple-500/30 z-30 flex max-w-full items-center justify-between gap-2 px-3 sm:px-6"
-          style={{ height: HEADER_HEIGHT }}
-        >
-          <div className="flex items-center gap-3">
+      <div className="dashboard-content">
+        <header className="dashboard-header">
+          <div className="flex min-w-0 items-center gap-3">
             <Button
               variant="ghost"
-              aria-label={sidebarOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="h-10 w-auto shrink-0 gap-2 px-2 text-white min-[380px]:px-3 lg:hidden"
+              aria-label={isSidebarOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
+              onClick={toggleSidebar}
+              className="h-10 w-auto shrink-0 gap-2 px-2 text-white min-[380px]:px-3"
             >
-              {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              <span className="hidden min-[380px]:inline">Menu</span>
+              <Menu className="h-5 w-5" />
+              <span className="hidden min-[380px]:inline lg:hidden">Menu</span>
             </Button>
-            <Link to="/" className="hidden text-white font-bold text-xl transition hover:text-purple-200 sm:block">
+            <Link to="/" className="hidden truncate text-xl font-bold text-white transition hover:text-purple-200 sm:block">
               SmartControl
             </Link>
           </div>
@@ -162,8 +172,7 @@ const DashboardLayout = ({ children }) => {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className={`flex-1 transition-all ${contentMarginClass}`} style={{ paddingTop: HEADER_HEIGHT }}>
+        <main className="dashboard-main">
           <div className="min-h-[calc(100vh-64px)] max-w-full px-3 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -181,7 +190,7 @@ const DashboardLayout = ({ children }) => {
         <div className="mx-auto flex max-w-md items-center gap-0.5 min-[380px]:gap-1">
           <button
             type="button"
-            onClick={() => setSidebarOpen(true)}
+            onClick={() => setIsSidebarOpen(true)}
             className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium leading-tight text-gray-400 transition hover:bg-purple-600/20 hover:text-white min-[380px]:px-2 min-[380px]:text-[11px]"
             aria-label="Abrir menu lateral"
           >
@@ -206,14 +215,6 @@ const DashboardLayout = ({ children }) => {
           </Link>
         </div>
       </nav>
-
-      {/* Overlay para mobile quando a sidebar está aberta */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
     </div>
   );
 };

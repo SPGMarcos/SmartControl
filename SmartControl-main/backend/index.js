@@ -296,6 +296,43 @@ const hasValidDeviceToken = (device, payload) => {
   return token === device.device_token;
 };
 
+const firstText = (...values) => {
+  for (const value of values) {
+    const safeValue = sanitizeText(value, 100);
+    if (safeValue) return safeValue;
+  }
+
+  return '';
+};
+
+const getHardwareIdentity = (payload = {}) => {
+  const identity = payload.hardware_identity || payload.identity || payload.device_identity || {};
+  const hardware = firstText(
+    payload.hardware,
+    identity.hardware,
+    payload.hardware_type,
+    payload.hardware_version,
+    payload.hardwareVersion,
+  );
+  const model = firstText(
+    payload.modelo,
+    payload.model,
+    payload.model_name,
+    payload.device_model,
+    identity.modelo,
+    identity.model,
+  );
+  const lora = maybeBoolean(payload.lora ?? payload.has_lora ?? payload.lora_enabled ?? identity.lora ?? identity.has_lora);
+
+  if (!hardware && !model && lora === null) return null;
+
+  return {
+    hardware: hardware || null,
+    modelo: model || null,
+    lora,
+  };
+};
+
 const handleMqttMessage = async (topic, message) => {
   const payload = safeJsonParse(message);
   const eventType = getEventTypeFromTopic(topic);
@@ -306,13 +343,17 @@ const handleMqttMessage = async (topic, message) => {
     // Armazenar dispositivo nao registrado para descoberta
     if ((eventType === 'heartbeat' || eventType === 'status' || eventType === 'announce') && payload.device_id) {
       const discoveryKey = payload.device_id || payload.mac_address || topic;
+      const hardwareIdentity = getHardwareIdentity(payload);
       discoveredDevices.set(discoveryKey, {
         device_id: payload.device_id,
         mac_address: payload.mac_address || payload.mac,
         ip: payload.ip,
         mdns: payload.mdns,
         firmware_version: payload.firmware_version,
-        hardware_version: payload.hardware_version,
+        hardware_version: hardwareIdentity?.hardware || payload.hardware_version,
+        hardware: hardwareIdentity?.hardware || null,
+        modelo: hardwareIdentity?.modelo || null,
+        lora: hardwareIdentity?.lora,
         module: payload.module,
         topic_root: identity.topicRoot,
         discovered_at: new Date().toISOString(),
@@ -420,7 +461,21 @@ const handleMqttMessage = async (topic, message) => {
   if (payload.firmware_version || payload.firmwareVersion) {
     updatePayload.firmware_version = payload.firmware_version || payload.firmwareVersion;
   }
-  if (payload.hardware_version || payload.hardwareVersion) {
+  const hardwareIdentity = getHardwareIdentity(payload);
+  if (hardwareIdentity) {
+    if (hardwareIdentity.hardware) updatePayload.hardware_version = hardwareIdentity.hardware;
+    if (hardwareIdentity.modelo) updatePayload.device_model = hardwareIdentity.modelo;
+    updatePayload.configuration = {
+      ...parseJsonField(device.configuration),
+      ...(updatePayload.configuration || {}),
+      hardware_identity: {
+        hardware: hardwareIdentity.hardware,
+        modelo: hardwareIdentity.modelo,
+        lora: hardwareIdentity.lora,
+      },
+      hardware_identity_updated_at: now,
+    };
+  } else if (payload.hardware_version || payload.hardwareVersion) {
     updatePayload.hardware_version = payload.hardware_version || payload.hardwareVersion;
   }
 
@@ -663,7 +718,7 @@ const normalizeCommand = ({ command, payload = {}, module }, device) => {
       command: normalizedCommand,
       payload: normalizedPayload,
     });
-    return { ...validated, module: 'heltec_esp32_lora_hydroponics' };
+    return { ...validated, module: normalizedModule };
   }
 
   const genericCommands = [

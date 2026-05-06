@@ -512,7 +512,7 @@ const DeviceDetail = () => {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Tópico MQTT personalizado</p>
-                      <p className="text-sm text-white break-all">{connectionData.mqtt_topic || 'Padrão do sistema'}</p>
+                      <p className="text-sm text-white break-words">{connectionData.mqtt_topic || 'Padrão do sistema'}</p>
                     </div>
                   </div>
                 ) : (
@@ -583,15 +583,15 @@ const DeviceDetail = () => {
                 <div className="grid gap-4">
                   <div>
                     <p className="text-xs text-gray-500">Comando</p>
-                    <p className="text-sm text-white break-all">{topics.command}</p>
+                    <p className="text-sm text-white break-words">{topics.command}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Status</p>
-                    <p className="text-sm text-white break-all">{topics.status}</p>
+                    <p className="text-sm text-white break-words">{topics.status}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Telemetria</p>
-                    <p className="text-sm text-white break-all">{topics.telemetry}</p>
+                    <p className="text-sm text-white break-words">{topics.telemetry}</p>
                   </div>
                 </div>
               </div>

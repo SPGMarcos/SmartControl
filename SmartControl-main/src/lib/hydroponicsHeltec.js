@@ -1,6 +1,7 @@
 import { buildMqttTopics } from '@/lib/mqttTopics';
 
 export const HYDROPONICS_MODULE_TYPE = 'heltec_esp32_lora_hydroponics';
+export const HYDROPONICS_ESP32_MODULE_TYPE = 'esp32_devkit_hydroponics';
 export const HYDROPONICS_DEVICE_TYPE = 'hydroponics';
 export const HYDROPONICS_DEFAULT_FIRMWARE = 'smartcontrol-hidroponia-1.0.0';
 
@@ -75,7 +76,9 @@ export const isHydroponicsDevice = (device = {}) => {
 
   return (
     device.module_type === HYDROPONICS_MODULE_TYPE ||
+    device.module_type === HYDROPONICS_ESP32_MODULE_TYPE ||
     device.device_model === HYDROPONICS_MODULE_TYPE ||
+    device.device_model === HYDROPONICS_ESP32_MODULE_TYPE ||
     device.type === HYDROPONICS_DEVICE_TYPE ||
     text.includes('hidroponia') ||
     text.includes('hydroponics') ||
@@ -101,7 +104,7 @@ export const normalizeHydroponicsState = (device = {}) => {
   const network = state.network || {};
 
   return {
-    moduleType: HYDROPONICS_MODULE_TYPE,
+    moduleType: device.module_type || device.module || device.device_model || HYDROPONICS_ESP32_MODULE_TYPE,
     online: toBoolean(device.connection_status, false) || toBoolean(state.online, false),
     t24: toBoolean(state.t24 ?? state.automatic ?? state.auto ?? state.mode?.automatic, false),
     v1: toBoolean(state.v1 ?? relays.pump ?? state.pump, Boolean(device.status)),
@@ -117,7 +120,7 @@ export const normalizeHydroponicsState = (device = {}) => {
       state.firmwareVersion ||
       device.firmware_version ||
       HYDROPONICS_DEFAULT_FIRMWARE,
-    hardwareVersion: state.hardware_version || device.hardware_version || 'Heltec ESP32 LoRa V2',
+    hardwareVersion: state.modelo || state.model || state.hardware || state.hardware_version || device.hardware_version || 'ESP32',
     capabilities: capabilities?.relays ? capabilities : HYDROPONICS_CAPABILITIES,
     lastSeen: device.last_heartbeat || state.last_seen || device.updated_at || device.created_at,
   };
@@ -186,8 +189,8 @@ export const buildBalancedHydroponicsTimerPayload = (device = {}, timers = {}, n
   };
 };
 
-export const buildHydroponicsCommand = (command, payload = {}) => ({
-  module: HYDROPONICS_MODULE_TYPE,
+export const buildHydroponicsCommand = (command, payload = {}, device = {}) => ({
+  module: device.module_type || device.module || device.device_model || HYDROPONICS_ESP32_MODULE_TYPE,
   command,
   payload,
   source: 'smartcontrol-web',

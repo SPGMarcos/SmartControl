@@ -216,7 +216,7 @@ const ProjectDashboard = ({ project, onToggle, onClose }) => (
       </div>
     )}
 
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
+    <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
       <div>
         <h3 className="mb-4 text-xl font-bold text-white">Acionamentos rápidos</h3>
         <div className="grid gap-4 md:grid-cols-2">
@@ -566,36 +566,40 @@ const Dashboard = () => {
 
       <DashboardLayout>
         <div className="w-full space-y-6 sm:space-y-8">
-          <div className="mb-6 mt-4 flex flex-col gap-4 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl min-w-0">
-              <p className="text-sm uppercase tracking-[0.25em] text-purple-300">Olá, {displayName}</p>
-              <h1 className="mt-2 text-3xl font-bold text-white md:text-4xl">
-                Sua central SmartControl
-              </h1>
-              <p className="mt-2 text-gray-400 leading-7">
-                Organize projetos, controle dispositivos e acompanhe sensores em uma visão única.
-              </p>
-            </div>
-            <div className="mobile-button-row flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Link to="/add-device" className="w-full sm:w-auto">
-                <Button className="w-full bg-purple-600 hover:bg-purple-700 sm:w-auto">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Novo dispositivo
-                </Button>
-              </Link>
-            </div>
-          </div>
+          {projectView === 'projects' && (
+            <>
+              <div className="mb-6 mt-4 flex flex-col gap-4 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-3xl min-w-0">
+                  <p className="text-sm uppercase tracking-[0.25em] text-purple-300">Olá, {displayName}</p>
+                  <h1 className="mt-2 text-3xl font-bold text-white md:text-4xl">
+                    Sua central SmartControl
+                  </h1>
+                  <p className="mt-2 text-gray-400 leading-7">
+                    Organize projetos, controle dispositivos e acompanhe sensores em uma visão única.
+                  </p>
+                </div>
+                <div className="mobile-button-row flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <Link to="/add-device" className="w-full sm:w-auto">
+                    <Button className="w-full bg-purple-600 hover:bg-purple-700 sm:w-auto">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo dispositivo
+                    </Button>
+                  </Link>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-6 lg:grid-cols-4">
-            <StatCard icon={Zap} label="Dispositivos Ativos" value={devices.filter((device) => device.status).length} />
-            <StatCard icon={Activity} label="Total de Dispositivos" value={devices.length} accent="text-green-400" delay={0.1} />
-            <StatCard icon={Layers} label="Projetos" value={projects.length} accent="text-purple-300" delay={0.2} />
-            <StatCard icon={Wifi} label="Online" value={onlineDevices} accent="text-blue-300" delay={0.3} />
-          </div>
+              <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+                <StatCard icon={Zap} label="Dispositivos Ativos" value={devices.filter((device) => device.status).length} />
+                <StatCard icon={Activity} label="Total de Dispositivos" value={devices.length} accent="text-green-400" delay={0.1} />
+                <StatCard icon={Layers} label="Projetos" value={projects.length} accent="text-purple-300" delay={0.2} />
+                <StatCard icon={Wifi} label="Online" value={onlineDevices} accent="text-blue-300" delay={0.3} />
+              </div>
+            </>
+          )}
 
           {projects.length > 0 && (
             <>
-              {!selectedProject && (
+              {projectView === 'projects' && (
               <section>
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">

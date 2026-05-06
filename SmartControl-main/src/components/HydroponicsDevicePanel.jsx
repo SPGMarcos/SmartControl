@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Waves,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -144,7 +145,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
       setPendingAutoMode(true);
     }
     try {
-      await onCommand(buildHydroponicsCommand(command, payload));
+      await onCommand(buildHydroponicsCommand(command, payload, device));
     } finally {
       busyCommandRef.current = '';
       setBusyCommand('');
@@ -201,7 +202,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
             <StatusPill online={online} />
           </div>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
-            Painel integrado do Heltec ESP32 LoRa mantendo a mesma lógica local: bomba, oxigenador,
+            Painel integrado SmartControl mantendo a mesma lógica local: bomba, oxigenador,
             modo automático, temporizador ON/OFF, dashboard embarcada, OTA, WiFiManager e MQTT Cloud.
           </p>
         </div>
@@ -323,30 +324,34 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:gap-2">
             {state.t24 && (
               <Button
                 type="button"
                 onClick={handleTimerSave}
                 disabled={busyCommand === 'set_timers' || busyCommand === 'set_config'}
-                className="h-12 flex-1 bg-purple-600 hover:bg-purple-700 text-base font-semibold"
+                className="h-12 flex-1 bg-purple-600 hover:bg-purple-700 text-base font-semibold whitespace-nowrap"
               >
-                <Clock3 className="mr-2 h-5 w-5" />
-                Salvar tempos
+                <Clock3 className="mr-2 h-5 w-5 flex-none" />
+                <span className="hidden sm:inline">Salvar tempos</span>
+                <span className="inline sm:hidden">Salvar</span>
               </Button>
             )}
-            {localSettingsUrl && (
-              <a href={localSettingsUrl} target="_blank" rel="noreferrer" className={state.t24 ? 'flex-1' : 'w-full'}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-12 w-full border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white text-base font-semibold"
-                >
-                  <Settings className="mr-2 h-5 w-5" />
-                  Ajustes locais
-                </Button>
-              </a>
-            )}
+            <Button
+              type="button"
+              onClick={() => {
+                const url = getHydroponicsLocalUrl(device);
+                if (url) window.location.href = url;
+              }}
+              variant="outline"
+              className={`h-12 flex-1 border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white text-base font-semibold whitespace-nowrap ${
+                state.t24 ? 'sm:flex-1' : 'w-full'
+              }`}
+            >
+              <Settings className="mr-2 h-5 w-5 flex-none" />
+              <span className="hidden sm:inline">Ajustes locais</span>
+              <span className="inline sm:hidden">Ajustes</span>
+            </Button>
           </div>
         </div>
 
@@ -367,15 +372,15 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
               <div className="space-y-3 text-sm">
                 <div>
                   <p className="text-gray-500">Comandos</p>
-                  <p className="break-all text-gray-200">{topics?.command || 'Configure o tópico MQTT do dispositivo.'}</p>
+                  <p className="break-words text-gray-200">{topics?.command || 'Configure o tópico MQTT do dispositivo.'}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">Status</p>
-                  <p className="break-all text-gray-200">{topics?.status || 'Aguardando tópico.'}</p>
+                  <p className="break-words text-gray-200">{topics?.status || 'Aguardando tópico.'}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">Heartbeat</p>
-                  <p className="break-all text-gray-200">{topics?.heartbeat || 'Aguardando tópico.'}</p>
+                  <p className="break-words text-gray-200">{topics?.heartbeat || 'Aguardando tópico.'}</p>
                 </div>
               </div>
             </div>

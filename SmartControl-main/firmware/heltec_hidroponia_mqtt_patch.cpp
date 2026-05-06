@@ -4,10 +4,17 @@
   Este arquivo nao substitui o firmware atual. Ele mostra os blocos que devem
   ser incorporados ao firmware existente para publicar status, heartbeat e
   receber comandos do backend SmartControl.
+
+  IMPORTANTE: O hardware deve ser identificado corretamente:
+  - Para ESP32 padrão (sem LoRa): "ESP32"
+  - Para Heltec ESP32 LoRa: "Heltec ESP32 LoRa"
 */
 
 #define SMARTCONTROL_MODULE "heltec_esp32_lora_hydroponics"
 #define SMARTCONTROL_FIRMWARE "smartcontrol-hidroponia-1.0.0"
+#define SMARTCONTROL_HARDWARE "ESP32 LoRa"
+#define SMARTCONTROL_MODEL "Heltec ESP32 LoRa"
+#define SMARTCONTROL_HAS_LORA true
 
 String scDeviceId = "hidroponia01";
 String scBaseTopic;
@@ -37,7 +44,10 @@ void smartControlPublishStatus(const char* eventType = "status") {
   doc["device_id"] = scDeviceId;
   doc["module"] = SMARTCONTROL_MODULE;
   doc["firmware_version"] = SMARTCONTROL_FIRMWARE;
-  doc["hardware_version"] = "Heltec ESP32 LoRa V2";
+  doc["hardware_version"] = SMARTCONTROL_HARDWARE;
+  doc["hardware"] = SMARTCONTROL_HARDWARE;
+  doc["modelo"] = SMARTCONTROL_MODEL;
+  doc["lora"] = SMARTCONTROL_HAS_LORA;
   doc["mac"] = WiFi.macAddress();
   doc["ip"] = WiFi.localIP().toString();
   doc["mdns"] = "smarthidroponia.local";

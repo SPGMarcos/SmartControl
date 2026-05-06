@@ -16,6 +16,7 @@ import {
   HYDROPONICS_CAPABILITIES,
   HYDROPONICS_DEFAULT_FIRMWARE,
   HYDROPONICS_DEVICE_TYPE,
+  HYDROPONICS_ESP32_MODULE_TYPE,
   HYDROPONICS_MODULE_TYPE,
 } from '@/lib/hydroponicsHeltec';
 import { sanitizeText } from '@/lib/security';
@@ -123,8 +124,13 @@ const AddDevice = () => {
     const safeMdnsHostname = sanitizeText(formData.mdnsHostname, 80);
     const safeMqttBroker = sanitizeText(formData.mqttBroker, 120);
     const safeDeviceToken = sanitizeText(formData.deviceToken, 120);
-    const isHydroponicsModule =
-      formData.type === HYDROPONICS_DEVICE_TYPE || formData.deviceModel === HYDROPONICS_MODULE_TYPE;
+    const hydroponicsModuleType =
+      formData.deviceModel === HYDROPONICS_MODULE_TYPE
+        ? HYDROPONICS_MODULE_TYPE
+        : formData.type === HYDROPONICS_DEVICE_TYPE
+          ? HYDROPONICS_ESP32_MODULE_TYPE
+          : 'generic_iot';
+    const isHydroponicsModule = formData.type === HYDROPONICS_DEVICE_TYPE;
     const topics = buildMqttTopics({
       client: user.id,
       project: safeProjectName,
@@ -153,7 +159,7 @@ const AddDevice = () => {
       protocol: formData.protocol,
       connection_status: 'offline',
       pairing_status: 'manual',
-      module_type: isHydroponicsModule ? HYDROPONICS_MODULE_TYPE : 'generic_iot',
+      module_type: hydroponicsModuleType,
       local_ip: safeLocalIp,
       mdns_hostname: safeMdnsHostname,
       capabilities: isHydroponicsModule ? HYDROPONICS_CAPABILITIES : {},
@@ -223,7 +229,7 @@ const AddDevice = () => {
           protocol: 'mqtt',
           deviceId: current.deviceId || 'hidroponia01',
           firmwareVersion: current.firmwareVersion || HYDROPONICS_DEFAULT_FIRMWARE,
-          hardwareVersion: current.hardwareVersion || 'Heltec ESP32 LoRa V2',
+          hardwareVersion: current.hardwareVersion || 'ESP32 LoRa',
           mdnsHostname: current.mdnsHostname || 'smarthidroponia.local',
         };
       }
@@ -232,10 +238,12 @@ const AddDevice = () => {
         return {
           ...next,
           projectName: 'Hidroponia inteligente',
-          deviceModel: HYDROPONICS_MODULE_TYPE,
+          deviceModel: current.deviceModel && current.deviceModel !== HYDROPONICS_MODULE_TYPE
+            ? current.deviceModel
+            : 'esp32',
           protocol: 'mqtt',
           firmwareVersion: current.firmwareVersion || HYDROPONICS_DEFAULT_FIRMWARE,
-          hardwareVersion: current.hardwareVersion || 'Heltec ESP32 LoRa V2',
+          hardwareVersion: current.hardwareVersion || 'ESP32',
           mdnsHostname: current.mdnsHostname || 'smarthidroponia.local',
         };
       }

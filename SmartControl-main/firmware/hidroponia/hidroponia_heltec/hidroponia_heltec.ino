@@ -42,7 +42,9 @@ bool mqttUseTls = false;
 
 const char* SMARTCONTROL_MODULE = "heltec_esp32_lora_hydroponics";
 const char* SMARTCONTROL_FIRMWARE = "smartcontrol-hidroponia-1.0.0";
-const char* SMARTCONTROL_HARDWARE = "ESP32";
+const char* SMARTCONTROL_HARDWARE = "ESP32 LoRa";
+const char* SMARTCONTROL_MODEL = "Heltec ESP32 LoRa";
+const bool SMARTCONTROL_HAS_LORA = true;
 
 // --- Persistência (LittleFS) ---
 void saveSettings() {
@@ -200,6 +202,9 @@ void publishStatus(const char* eventType = "status") {
     doc["module"] = SMARTCONTROL_MODULE;
     doc["firmware_version"] = SMARTCONTROL_FIRMWARE;
     doc["hardware_version"] = SMARTCONTROL_HARDWARE;
+    doc["hardware"] = SMARTCONTROL_HARDWARE;
+    doc["modelo"] = SMARTCONTROL_MODEL;
+    doc["lora"] = SMARTCONTROL_HAS_LORA;
     doc["mac"] = WiFi.macAddress();
     doc["ip"] = WiFi.localIP().toString();
     doc["mdns"] = "smarthidroponia.local";
@@ -546,7 +551,7 @@ void setup() {
     
     server.on("/status", [](){
         long restante = calcularRestante();
-        String json = "{\"device_id\":\""+mDeviceId+"\",\"module\":\""+String(SMARTCONTROL_MODULE)+"\",\"firmware_version\":\""+String(SMARTCONTROL_FIRMWARE)+"\",\"ip\":\""+WiFi.localIP().toString()+"\",\"mac\":\""+WiFi.macAddress()+"\",\"mdns\":\"smarthidroponia.local\",\"mqtt\":"+String(mqttClient.connected()?"true":"false")+",\"t24\":"+String(trava24h?"true":"false")+",\"v1\":"+String(v1?"true":"false")+",\"v2\":"+String(v2?"true":"false")+",\"rem\":"+String(restante)+",\"tOn\":"+String(tOnMin)+",\"tOff\":"+String(tOffMin)+"}";
+        String json = "{\"device_id\":\""+mDeviceId+"\",\"module\":\""+String(SMARTCONTROL_MODULE)+"\",\"firmware_version\":\""+String(SMARTCONTROL_FIRMWARE)+"\",\"hardware_version\":\""+String(SMARTCONTROL_HARDWARE)+"\",\"hardware\":\""+String(SMARTCONTROL_HARDWARE)+"\",\"modelo\":\""+String(SMARTCONTROL_MODEL)+"\",\"lora\":"+(SMARTCONTROL_HAS_LORA ? String("true") : String("false"))+",\"ip\":\""+WiFi.localIP().toString()+"\",\"mac\":\""+WiFi.macAddress()+"\",\"mdns\":\"smarthidroponia.local\",\"mqtt\":"+String(mqttClient.connected()?"true":"false")+",\"t24\":"+String(trava24h?"true":"false")+",\"v1\":"+String(v1?"true":"false")+",\"v2\":"+String(v2?"true":"false")+",\"rem\":"+String(restante)+",\"tOn\":"+String(tOnMin)+",\"tOff\":"+String(tOffMin)+"}";
         server.send(200, "application/json", json);
     });
 
