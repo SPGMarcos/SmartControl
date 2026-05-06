@@ -129,19 +129,7 @@ const DashboardLayout = ({ children }) => {
 
       <div className="dashboard-content">
         <header className="dashboard-header">
-          <div className="dashboard-header-start">
-            <Link to="/" className="dashboard-brand">
-              SmartControl
-            </Link>
-          </div>
-
-          <div className="dashboard-header-end">
-            <div className="dashboard-user">
-              <p>{displayName}</p>
-              <span>Dashboard ativo</span>
-            </div>
-            <ThemeToggle />
-          </div>
+          <ThemeToggle />
         </header>
 
         <main className="dashboard-main">

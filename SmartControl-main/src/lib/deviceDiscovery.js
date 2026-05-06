@@ -62,6 +62,7 @@ export const mapDiscoveredDataToForm = (discoveredData) => {
     macAddress: discoveredData.mac_address || '',
     firmwareVersion: discoveredData.firmware_version || '',
     hardwareVersion: discoveredData.hardware || discoveredData.hardware_version || '',
+    capabilities: discoveredData.capabilities || {},
     localIp: discoveredData.ip || '',
     mdnsHostname: discoveredData.mdns || '',
     mqttTopic: discoveredData.topic_root || '',

@@ -18,7 +18,6 @@ Use uma destas opcoes, conforme aparecer no seu Arduino IDE:
 
 Instale pelo Library Manager:
 
-- `WiFiManager`
 - `PubSubClient`
 - `ArduinoJson`
 - `U8g2`
@@ -28,7 +27,7 @@ As demais fazem parte do core ESP32:
 - `WiFi`
 - `WiFiClientSecure`
 - `WebServer`
-- `LittleFS`
+- `Preferences`
 - `ArduinoOTA`
 - `ESPmDNS`
 
@@ -42,10 +41,10 @@ As demais fazem parte do core ESP32:
 
 Primeiro boot:
 
-1. Conecte no Wi-Fi `ESP_Hidroponia`.
-2. Configure sua rede Wi-Fi.
-3. Acesse `http://smarthidroponia.local/settings`.
-4. Preencha MQTT:
+1. Se nao houver Wi-Fi salvo, conecte no AP `SmartControl-XXXX`.
+2. Acesse `http://192.168.4.1`.
+3. Controle o dispositivo localmente ou configure Wi-Fi, senha do AP, nome e MQTT.
+4. Preencha MQTT se quiser integrar com a cloud:
    - Broker: `mqtts://SEU_BROKER:8883`
    - Usuario
    - Senha
@@ -62,3 +61,6 @@ MQTT SmartControl conectado.
 ```
 
 Se aparecer `Falha MQTT, state=...`, revise broker, porta, usuario, senha e ACL.
+
+O controle local nao depende de MQTT nem internet: relés, modo automatico e timers
+continuam funcionando pelo dashboard AP em `192.168.4.1`.

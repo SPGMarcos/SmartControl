@@ -5,6 +5,15 @@ import helmet from 'helmet';
 import mqtt from 'mqtt';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import { buildPresenceUpdate, isHeartbeatStale } from './src/managers/devicePresenceManager.js';
+import { DEVICE_CLASSES, buildCanonicalIdentity } from './src/managers/deviceRegistry.js';
+import { integrationManager } from './src/managers/integrationManager.js';
+import { buildOtaDescriptor } from './src/managers/otaManager.js';
+import {
+  getHardwareIdentity as getProtocolHardwareIdentity,
+  normalizeCapabilities,
+  normalizeSmartControlPayload,
+} from './src/protocols/smartcontrolProtocol.js';
 
 dotenv.config();
 
@@ -17,6 +26,9 @@ const {
   MQTT_CLIENT_ID,
   MQTT_STATUS_TOPICS,
   MQTT_REJECT_UNAUTHORIZED = 'true',
+  MQTT_CLEAN_SESSION = 'false',
+  MQTT_CONNECT_TIMEOUT_MS = '30000',
+  MQTT_RECONNECT_PERIOD_MS = '5000',
   MQTT_REQUIRE_DEVICE_TOKEN = 'false',
   CORS_ORIGIN,
   REQUIRE_AUTH = 'false',
@@ -122,10 +134,13 @@ const sendRealtimeEvent = (event) => {
 const mqttClient = mqtt.connect(MQTT_URL, {
   username: MQTT_USERNAME,
   password: MQTT_PASSWORD,
-  clientId: MQTT_CLIENT_ID || `smartcontrol-backend-${Math.random().toString(36).slice(2, 8)}`,
-  keepalive: 30,
-  reconnectPeriod: 5000,
-  clean: true,
+  clientId: MQTT_CLIENT_ID || `smartcontrol-backend-${process.env.RENDER_INSTANCE_ID || process.env.RENDER_SERVICE_ID || 'main'}`,
+  keepalive: 60,
+  reconnectPeriod: Math.max(1000, Number(MQTT_RECONNECT_PERIOD_MS) || 5000),
+  connectTimeout: Math.max(5000, Number(MQTT_CONNECT_TIMEOUT_MS) || 30000),
+  clean: MQTT_CLEAN_SESSION === 'true',
+  resubscribe: true,
+  queueQoSZero: false,
   rejectUnauthorized: MQTT_REJECT_UNAUTHORIZED !== 'false',
 });
 
@@ -306,35 +321,17 @@ const firstText = (...values) => {
 };
 
 const getHardwareIdentity = (payload = {}) => {
-  const identity = payload.hardware_identity || payload.identity || payload.device_identity || {};
-  const hardware = firstText(
-    payload.hardware,
-    identity.hardware,
-    payload.hardware_type,
-    payload.hardware_version,
-    payload.hardwareVersion,
-  );
-  const model = firstText(
-    payload.modelo,
-    payload.model,
-    payload.model_name,
-    payload.device_model,
-    identity.modelo,
-    identity.model,
-  );
-  const lora = maybeBoolean(payload.lora ?? payload.has_lora ?? payload.lora_enabled ?? identity.lora ?? identity.has_lora);
-
-  if (!hardware && !model && lora === null) return null;
-
+  const hardwareIdentity = getProtocolHardwareIdentity(payload);
+  if (!hardwareIdentity) return null;
   return {
-    hardware: hardware || null,
-    modelo: model || null,
-    lora,
+    hardware: hardwareIdentity.hardware,
+    modelo: hardwareIdentity.modelo || hardwareIdentity.model,
+    lora: hardwareIdentity.lora,
   };
 };
 
 const handleMqttMessage = async (topic, message) => {
-  const payload = safeJsonParse(message);
+  const payload = normalizeSmartControlPayload(safeJsonParse(message));
   const eventType = getEventTypeFromTopic(topic);
   const identity = extractIdentity(topic, payload);
   const device = await findDeviceByIdentity(identity);
@@ -346,6 +343,9 @@ const handleMqttMessage = async (topic, message) => {
       const hardwareIdentity = getHardwareIdentity(payload);
       discoveredDevices.set(discoveryKey, {
         device_id: payload.device_id,
+        uuid: payload.uuid || payload.device_uuid,
+        type: payload.type || payload.device_type,
+        category: payload.category || payload.device_class,
         mac_address: payload.mac_address || payload.mac,
         ip: payload.ip,
         mdns: payload.mdns,
@@ -354,6 +354,7 @@ const handleMqttMessage = async (topic, message) => {
         hardware: hardwareIdentity?.hardware || null,
         modelo: hardwareIdentity?.modelo || null,
         lora: hardwareIdentity?.lora,
+        capabilities: normalizeCapabilities(payload.capabilities),
         module: payload.module,
         topic_root: identity.topicRoot,
         discovered_at: new Date().toISOString(),
@@ -388,42 +389,20 @@ const handleMqttMessage = async (topic, message) => {
   }
 
   const now = new Date().toISOString();
-  const availabilityValue = payload.status ?? payload.state ?? payload.online;
-  const availabilityText = String(availabilityValue ?? '').trim().toLowerCase();
-  const availabilityOffline = eventType === 'availability' && ['offline', 'false', '0', 'off'].includes(availabilityText);
-  const availabilityOnline = eventType === 'availability' && ['online', 'true', '1', 'on'].includes(availabilityText);
-  const presenceEvent =
-    ['status', 'telemetry', 'heartbeat', 'ack'].includes(eventType) ||
-    availabilityOffline ||
-    availabilityOnline;
-  const nextOnline = availabilityOffline ? false : presenceEvent ? true : null;
   const previousLastState = parseJsonField(device.last_state);
   const previousTelemetry = parseJsonField(device.telemetry);
-  const replacesDeviceState = ['status', 'telemetry', 'heartbeat'].includes(eventType);
-  const nextLastState = replacesDeviceState
-    ? {
-        ...payload,
-        online: true,
-        last_seen: now,
-      }
-    : {
-        ...previousLastState,
-        ...(presenceEvent ? { online: nextOnline, last_seen: now } : {}),
-        last_ack: eventType === 'ack' ? payload : previousLastState.last_ack,
-        last_availability: eventType === 'availability' ? payload : previousLastState.last_availability,
-      };
-  const nextTelemetry = replacesDeviceState
-    ? {
-        ...payload,
-        online: true,
-        last_seen: now,
-      }
-    : {
-        ...previousTelemetry,
-        ...(presenceEvent ? { online: nextOnline, last_seen: now } : {}),
-        last_ack: eventType === 'ack' ? payload : previousTelemetry.last_ack,
-        last_availability: eventType === 'availability' ? payload : previousTelemetry.last_availability,
-      };
+  const canonicalIdentity = buildCanonicalIdentity(payload, device);
+  const reportedCapabilities = normalizeCapabilities(payload.capabilities);
+  const capabilities = Object.keys(reportedCapabilities).length > 0
+    ? reportedCapabilities
+    : canonicalIdentity.capabilities;
+  const presenceUpdate = buildPresenceUpdate({
+    eventType,
+    payload,
+    previousLastState,
+    previousTelemetry,
+    now,
+  });
 
   const pumpState = maybeBoolean(payload.v1 ?? payload.relays?.pump ?? payload.pump);
   const nextConfiguration =
@@ -439,12 +418,8 @@ const handleMqttMessage = async (topic, message) => {
     updated_at: now,
   };
 
-  if (presenceEvent) {
-    updatePayload.connection_status = nextOnline ? 'online' : 'offline';
-    updatePayload.online = nextOnline;
-    updatePayload.last_heartbeat = now;
-    updatePayload.last_state = nextLastState;
-    updatePayload.telemetry = nextTelemetry;
+  if (presenceUpdate.presence.isPresenceEvent) {
+    Object.assign(updatePayload, presenceUpdate.update);
   } else if (eventType === 'config') {
     updatePayload.telemetry = {
       ...previousTelemetry,
@@ -455,6 +430,15 @@ const handleMqttMessage = async (topic, message) => {
 
   if (pumpState !== null) updatePayload.status = pumpState;
   if (nextConfiguration) updatePayload.configuration = nextConfiguration;
+  if (Object.keys(capabilities).length > 0) {
+    updatePayload.configuration = {
+      ...parseJsonField(device.configuration),
+      ...(updatePayload.configuration || {}),
+      canonical_identity: canonicalIdentity,
+      capabilities,
+      capabilities_updated_at: now,
+    };
+  }
   if (payload.ip || payload.network?.ip) updatePayload.local_ip = payload.ip || payload.network.ip;
   if (payload.mdns || payload.network?.mdns) updatePayload.mdns_hostname = payload.mdns || payload.network.mdns;
   if (payload.mac || payload.network?.mac) updatePayload.mac_address = payload.mac || payload.network.mac;
@@ -515,6 +499,12 @@ const handleMqttMessage = async (topic, message) => {
 
 mqttClient.on('connect', () => {
   console.log('MQTT backend conectado ao broker.');
+  sendRealtimeEvent({
+    type: 'mqtt_status',
+    mqtt_connected: true,
+    event_type: 'connect',
+    updated_at: new Date().toISOString(),
+  });
   mqttClient.subscribe(statusTopics, { qos: 1 }, (error) => {
     if (error) {
       console.error('Erro ao assinar topicos MQTT:', error.message);
@@ -532,6 +522,25 @@ mqttClient.on('message', (topic, message) => {
 
 mqttClient.on('reconnect', () => {
   console.log('Reconectando ao broker MQTT...');
+});
+
+mqttClient.on('offline', () => {
+  console.warn('MQTT backend offline. Comandos serao recusados ate reconectar.');
+  sendRealtimeEvent({
+    type: 'mqtt_status',
+    mqtt_connected: false,
+    event_type: 'offline',
+    updated_at: new Date().toISOString(),
+  });
+});
+
+mqttClient.on('close', () => {
+  sendRealtimeEvent({
+    type: 'mqtt_status',
+    mqtt_connected: false,
+    event_type: 'close',
+    updated_at: new Date().toISOString(),
+  });
 });
 
 mqttClient.on('error', (error) => {
@@ -555,9 +564,14 @@ const markStaleDevicesOffline = async () => {
   }
 
   await Promise.all((data || []).map(async (device) => {
+    if (!isHeartbeatStale(device.last_heartbeat, deviceHeartbeatTimeoutMs)) return;
+
     const offlinePatch = {
       online: false,
+      connection_status: 'offline',
       offline_reason: 'heartbeat_timeout',
+      presence_source: 'heartbeat_sweep',
+      last_seen_at: now,
       last_offline_at: now,
     };
 
@@ -988,8 +1002,9 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   return res.json({
     status: 'ok',
-    version: '1.4.0',
+    version: '1.5.0',
     mqtt_connected: mqttClient.connected,
+    mqtt_clean_session: MQTT_CLEAN_SESSION === 'true',
     subscribed_topics: statusTopics,
     auth_required: requireAuth,
     device_token_required: requireDeviceToken,
@@ -1169,6 +1184,39 @@ app.get('/api/discover/devices/:deviceId', (req, res) => {
     return res.status(404).json({ error: 'Dispositivo nao encontrado' });
   }
   return res.json(device);
+});
+
+app.get('/api/device-classes', (req, res) => {
+  return res.json({
+    classes: DEVICE_CLASSES,
+  });
+});
+
+app.get('/api/integrations', (req, res) => {
+  return res.json({
+    providers: integrationManager.listProviders(),
+  });
+});
+
+app.get('/api/integrations/:provider/devices', async (req, res) => {
+  const result = await integrationManager.discover(req.params.provider);
+  if (!result) return res.status(404).json({ error: 'Integracao nao registrada.' });
+  return res.json(result);
+});
+
+app.post('/api/integrations/:provider/command', async (req, res) => {
+  const result = await integrationManager.sendCommand(req.params.provider, req.body || {});
+  if (!result) return res.status(404).json({ error: 'Integracao nao registrada.' });
+  return res.status(result.accepted ? 200 : 501).json(result);
+});
+
+app.get('/api/devices/:id/ota', async (req, res) => {
+  const resolved = await resolveAuthorizedDevice(req, res, { dbId: req.params.id, deviceId: req.params.id });
+  if (!resolved) return;
+
+  return res.json({
+    ota: buildOtaDescriptor(resolved.device),
+  });
 });
 
 app.listen(PORT, () => {
