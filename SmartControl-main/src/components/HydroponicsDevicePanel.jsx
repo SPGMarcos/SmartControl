@@ -185,6 +185,12 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
 
   return (
     <section className="gradient-card mobile-card rounded-2xl border border-purple-500/30 p-4 sm:rounded-3xl sm:p-7">
+      {compact && (
+        <div className="mb-4 rounded-2xl border border-purple-500/20 bg-black/20 p-4">
+          <p className="text-sm uppercase tracking-[0.2em] text-purple-300">Dispositivo</p>
+          <h3 className="mt-2 text-lg font-semibold text-white">{device.name}</h3>
+        </div>
+      )}
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -239,8 +245,8 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
 
           {state.t24 && (
             <>
-              <div className="mb-6 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="mb-6 grid grid-cols-2 gap-3">
+                <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                   <label className="text-sm font-medium text-gray-300" htmlFor={`ton-${device.id}`}>
                     Minutos ON
                   </label>
@@ -250,10 +256,10 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                     min="1"
                     value={timerValues.tOn}
                     onChange={(event) => setTimerValues((current) => ({ ...current, tOn: event.target.value }))}
-                    className="mt-3 h-12 bg-black/40 border-purple-500/30 text-white text-lg"
+                    className="mt-3 h-12 w-full bg-black/40 border-purple-500/30 text-white text-lg"
                   />
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                   <label className="text-sm font-medium text-gray-300" htmlFor={`toff-${device.id}`}>
                     Minutos OFF
                   </label>
@@ -263,7 +269,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                     min="1"
                     value={timerValues.tOff}
                     onChange={(event) => setTimerValues((current) => ({ ...current, tOff: event.target.value }))}
-                    className="mt-3 h-12 bg-black/40 border-purple-500/30 text-white text-lg"
+                    className="mt-3 h-12 w-full bg-black/40 border-purple-500/30 text-white text-lg"
                   />
                 </div>
               </div>

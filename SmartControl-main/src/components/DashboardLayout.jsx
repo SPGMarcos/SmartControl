@@ -14,7 +14,9 @@ import {
   Menu,
   X,
   Shield,
-  ShoppingBag
+  ShoppingBag,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { getUserDisplayName } from '@/lib/deviceProjects';
 
@@ -24,6 +26,7 @@ const DashboardLayout = ({ children }) => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const contentMarginClass = sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64';
 
   const menuItems = [
     { icon: Home, label: 'Home', path: '/' },
@@ -80,8 +83,13 @@ const DashboardLayout = ({ children }) => {
               variant="ghost"
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               className="text-gray-400 hover:text-white lg:block hidden"
+              aria-label={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
             >
-              <Menu className="w-5 h-5" />
+              {sidebarCollapsed ? (
+                <ChevronRight className="w-5 h-5" />
+              ) : (
+                <ChevronLeft className="w-5 h-5" />
+              )}
             </Button>
           </div>
 
@@ -124,7 +132,7 @@ const DashboardLayout = ({ children }) => {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex min-w-0 flex-1 flex-col lg:ml-64">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Header */}
         <header
           className="fixed top-0 left-0 right-0 lg:left-64 bg-black/90 backdrop-blur-lg border-b border-purple-500/30 z-30 flex max-w-full items-center justify-between gap-2 px-3 sm:px-6"
@@ -155,7 +163,7 @@ const DashboardLayout = ({ children }) => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1" style={{ paddingTop: HEADER_HEIGHT }}>
+        <main className={`flex-1 transition-all ${contentMarginClass}`} style={{ paddingTop: HEADER_HEIGHT }}>
           <div className="min-h-[calc(100vh-64px)] max-w-full px-3 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
