@@ -386,6 +386,15 @@ const Dashboard = () => {
       setLoading(false);
     };
 
+    let refreshTimer = null;
+    const scheduleRefresh = (delay = 120) => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        fetchData();
+      }, delay);
+    };
+
     fetchData({ showLoader: true });
 
     const polling = window.setInterval(() => {
@@ -394,27 +403,31 @@ const Dashboard = () => {
 
     const deviceSub = supabase.channel('public:devices')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'devices', filter: `user_id=eq.${user?.id}` }, () => {
-        fetchData();
+        scheduleRefresh();
       })
       .subscribe();
 
     const sensorSub = supabase.channel('public:sensors')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sensors' }, () => {
-        fetchData();
+        scheduleRefresh();
       })
       .subscribe();
 
     const unsubscribeBackendEvents = subscribeBackendEvents({
       onDeviceState: (event) => {
-        if (!event.user_id || event.user_id === user.id) fetchData();
+        if (!event.user_id || event.user_id === user.id) scheduleRefresh();
+      },
+      onCommandAck: (event) => {
+        if (!event.user_id || event.user_id === user.id) scheduleRefresh(40);
       },
       onDeviceDiscovered: () => {
-        fetchData();
+        scheduleRefresh();
       },
     });
 
     return () => {
       window.clearInterval(polling);
+      if (refreshTimer) window.clearTimeout(refreshTimer);
       supabase.removeChannel(deviceSub);
       supabase.removeChannel(sensorSub);
       unsubscribeBackendEvents();
@@ -460,7 +473,8 @@ const Dashboard = () => {
   };
 
   const handleDeviceCommand = async (device, commandPayload) => {
-    const optimisticDevice = applyHydroponicsCommandState(device, commandPayload);
+    const shouldWaitForFirmware = commandPayload?.requiresStateConfirmation === true;
+    const optimisticDevice = shouldWaitForFirmware ? device : applyHydroponicsCommandState(device, commandPayload);
     const hasOptimisticUpdate = optimisticDevice !== device;
 
     if (hasOptimisticUpdate) {
@@ -490,7 +504,7 @@ const Dashboard = () => {
         title: 'Backend nao configurado',
         description: 'Configure VITE_BACKEND_URL para enviar comandos MQTT.',
       });
-      return;
+      return { ok: false, error: 'backend_not_configured' };
     }
 
     const endpoint = commandPayload?.useConfigTopic
@@ -528,7 +542,7 @@ const Dashboard = () => {
         title: 'Backend indisponivel',
         description: 'Nao foi possivel enviar o comando agora. Tente novamente em instantes.',
       });
-      return;
+      return { ok: false, error: 'backend_unavailable' };
     }
 
     if (!response.ok) {
@@ -538,15 +552,18 @@ const Dashboard = () => {
         title: 'Falha ao enviar comando',
         description: payload.error || 'Tente novamente mais tarde.',
       });
-      return;
+      return { ok: false, error: payload.error || 'command_failed' };
     }
 
     toast({
       title: commandPayload?.useConfigTopic ? 'Configuracao enviada' : 'Comando enviado',
       description: commandPayload?.useConfigTopic
         ? `Ajustes enviados para ${device.name}.`
-        : `${commandPayload?.command} enviado para ${device.name}.`,
+        : commandPayload?.requiresStateConfirmation
+          ? `Aguardando confirmacao da firmware de ${device.name}.`
+          : `${commandPayload?.command} enviado para ${device.name}.`,
     });
+    return { ok: true, ...payload };
   };
 
   if (loading) {
@@ -568,19 +585,19 @@ const Dashboard = () => {
         <div className="w-full space-y-6 sm:space-y-8">
           {projectView === 'projects' && (
             <>
-              <div className="mb-6 mt-4 flex flex-col gap-4 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="mb-5 mt-0 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-3xl min-w-0">
-                  <p className="text-sm uppercase tracking-[0.25em] text-purple-300">Olá, {displayName}</p>
-                  <h1 className="mt-2 text-3xl font-bold text-white md:text-4xl">
+                  <p className="theme-kicker text-sm uppercase tracking-[0.25em]">Olá, {displayName}</p>
+                  <h1 className="theme-title mt-2 text-3xl font-bold md:text-4xl">
                     Sua central SmartControl
                   </h1>
-                  <p className="mt-2 text-gray-400 leading-7">
+                  <p className="theme-muted mt-2 leading-7">
                     Organize projetos, controle dispositivos e acompanhe sensores em uma visão única.
                   </p>
                 </div>
                 <div className="mobile-button-row flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Link to="/add-device" className="w-full sm:w-auto">
-                    <Button className="w-full bg-purple-600 hover:bg-purple-700 sm:w-auto">
+                    <Button className="w-full sm:w-auto">
                       <Plus className="w-4 h-4 mr-2" />
                       Novo dispositivo
                     </Button>
@@ -603,8 +620,8 @@ const Dashboard = () => {
               <section id="projects">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <h2 className="text-2xl font-bold text-white">Projetos e linhas de automação</h2>
-                    <p className="mt-1 text-gray-400">Escolha uma classe para ver os dispositivos ou abra a visão agrupada.</p>
+                    <h2 className="theme-title text-2xl font-bold">Projetos e linhas de automação</h2>
+                    <p className="theme-muted mt-1">Escolha uma classe para ver os dispositivos ou abra a visão agrupada.</p>
                   </div>
                 </div>
 
@@ -648,13 +665,13 @@ const Dashboard = () => {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-center py-20 gradient-card rounded-xl border border-purple-500/30"
+              className="theme-card text-center py-20 rounded-xl"
             >
-              <p className="text-gray-400 text-lg mb-4">
+              <p className="theme-muted text-lg mb-4">
                 Você ainda não tem dispositivos cadastrados
               </p>
               <Link to="/add-device">
-                <Button className="bg-purple-600 hover:bg-purple-700">
+                <Button>
                   <Plus className="w-4 h-4 mr-2" />
                   Adicionar Primeiro Dispositivo
                 </Button>

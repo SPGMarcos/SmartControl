@@ -108,17 +108,17 @@ const MarketplaceModal = ({
             <div className="absolute inset-0 gradient-purple opacity-25" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(168,85,247,0.24),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_28%)]" />
 
-            <div className="relative p-4 sm:p-8">
+            <div className="theme-card relative rounded-2xl p-4 sm:rounded-3xl sm:p-8">
               <div className="flex items-start justify-between gap-3 sm:gap-4">
                 <div className="min-w-0">
                   <div className="theme-readable-pill mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-2 text-sm text-purple-200 sm:px-4">
                     <ShoppingBag className="h-4 w-4" />
                     Marketplace SmartControl
                   </div>
-                  <h2 id="marketplace-title" className="text-2xl font-bold text-white sm:text-4xl">
+                  <h2 id="marketplace-title" className="text-2xl font-bold theme-title sm:text-4xl">
                     Solucoes inteligentes para casa, campo e empresas
                   </h2>
-                  <p className="mt-3 max-w-2xl text-base text-gray-300 sm:text-lg">
+                  <p className="mt-3 max-w-2xl text-base theme-muted sm:text-lg">
                     Escolha um canal para comprar kits, pedir orcamento ou acompanhar as novidades da SmartControl.
                   </p>
                 </div>
@@ -126,7 +126,7 @@ const MarketplaceModal = ({
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="shrink-0 rounded-full border border-white/10 bg-white/5 p-2 text-gray-300 transition hover:border-purple-400/60 hover:text-white"
+                  className="shrink-0 rounded-full border border-[var(--border-color)] bg-[var(--button-ghost-hover)] p-2 text-[var(--button-ghost-text)] transition hover:border-[var(--accent-purple)] hover:text-[var(--text-strong)]"
                   aria-label="Fechar"
                 >
                   <X className="h-5 w-5" />
@@ -137,18 +137,18 @@ const MarketplaceModal = ({
                 {marketplaceOptions.map((option) => {
                   const Icon = option.icon;
                   const cardClass =
-                    'group block rounded-2xl border border-purple-500/20 bg-black/55 p-5 text-left transition hover:-translate-y-1 hover:border-purple-400/60 hover:bg-purple-950/20';
+                    'theme-panel group block rounded-2xl p-5 text-left transition hover:-translate-y-1 hover:border-purple-400/60 hover:bg-purple-950/20';
 
                   const content = (
                     <>
                       <div className="flex min-w-0 items-start gap-3">
-                        <span className="flex-none rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <span className="flex-none rounded-2xl border border-[var(--border-color)] bg-[var(--button-ghost-hover)] p-3">
                           <Icon className={`h-6 w-6 ${option.accent}`} />
                         </span>
-                        <h3 className="min-w-0 text-lg font-semibold text-white">{option.title}</h3>
+                        <h3 className="min-w-0 text-lg font-semibold theme-title">{option.title}</h3>
                       </div>
-                      <p className="mt-4 text-sm leading-6 text-gray-400">{option.description}</p>
-                      <span className="mt-5 inline-flex text-sm font-semibold text-purple-300 group-hover:text-purple-200">
+                      <p className="mt-4 text-sm leading-6 theme-muted">{option.description}</p>
+                      <span className="mt-5 inline-flex text-sm font-semibold theme-link">
                         {option.label}
                       </span>
                     </>
@@ -184,7 +184,7 @@ const MarketplaceModal = ({
                 })}
               </div>
 
-              <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm text-gray-300">
+              <div className="theme-panel mt-8 rounded-2xl p-5 text-sm theme-muted">
                 Produtos planejados: controladores ESP32 e ESP8266, sensores ambientais, reles, valvulas solenoides,
                 kits de irrigacao inteligente, iluminacao smart e automacao personalizada.
               </div>

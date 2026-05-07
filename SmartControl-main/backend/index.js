@@ -32,8 +32,9 @@ const {
   MQTT_REQUIRE_DEVICE_TOKEN = 'false',
   CORS_ORIGIN,
   REQUIRE_AUTH = 'false',
-  DEVICE_HEARTBEAT_TIMEOUT_MS = '90000',
+  DEVICE_HEARTBEAT_TIMEOUT_MS = '180000',
   DEVICE_HEARTBEAT_SWEEP_INTERVAL_MS = '30000',
+  COMMAND_ACK_TIMEOUT_MS = '45000',
   PORT = 4000,
 } = process.env;
 
@@ -47,8 +48,9 @@ if (!MQTT_URL) {
 
 const requireAuth = REQUIRE_AUTH === 'true';
 const requireDeviceToken = MQTT_REQUIRE_DEVICE_TOKEN === 'true';
-const deviceHeartbeatTimeoutMs = Math.max(30000, Number(DEVICE_HEARTBEAT_TIMEOUT_MS) || 90000);
+const deviceHeartbeatTimeoutMs = Math.max(60000, Number(DEVICE_HEARTBEAT_TIMEOUT_MS) || 180000);
 const deviceHeartbeatSweepIntervalMs = Math.max(10000, Number(DEVICE_HEARTBEAT_SWEEP_INTERVAL_MS) || 30000);
+const commandAckTimeoutMs = Math.max(15000, Number(COMMAND_ACK_TIMEOUT_MS) || 45000);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: {
@@ -175,6 +177,70 @@ const parseJsonField = (value) => {
   if (!value) return {};
   if (typeof value === 'object') return value;
   return safeJsonParse(value);
+};
+
+const pendingCommands = new Map();
+
+const buildCommandPendingPatch = ({
+  command,
+  payload,
+  module,
+  requestId,
+  topic,
+  userId,
+  now,
+  expiresAt,
+}) => ({
+  pending_command: command,
+  pending_command_payload: payload,
+  pending_command_at: now,
+  pending_command_topic: topic,
+  pending_command_module: module,
+  pending_command_user_id: userId || null,
+  pending_request_id: requestId,
+  pending_command_expires_at: expiresAt,
+  last_command_status: 'pending',
+  last_command_reason: null,
+});
+
+const resolveCommandTopicRoots = (device = {}) => {
+  const configuration = parseJsonField(device.configuration);
+  const candidates = [
+    configuration.discovered_topic_root,
+    configuration.mqtt_topics?.root,
+    configuration.connection?.mqtt_topic,
+    device.mqtt_topic,
+    device.topic,
+    ...(Array.isArray(configuration.known_topic_roots) ? configuration.known_topic_roots : []),
+  ];
+  const fallbackRoot = buildMqttTopics(device).root;
+  const roots = [...candidates, fallbackRoot]
+    .map((root) => normalizeTopicRoot(String(root || '')))
+    .filter(Boolean);
+
+  return Array.from(new Set(roots));
+};
+
+const rememberPendingCommand = ({ device, mqttPayload, topic, userId }) => {
+  const expiresAtMs = Date.now() + commandAckTimeoutMs;
+  pendingCommands.set(mqttPayload.request_id, {
+    deviceId: device.id,
+    externalDeviceId: device.device_id || device.id,
+    userId: userId || device.user_id || null,
+    command: mqttPayload.command,
+    payload: mqttPayload.payload,
+    module: mqttPayload.module,
+    topic,
+    sentAt: mqttPayload.sent_at,
+    expiresAtMs,
+  });
+};
+
+const resolvePendingCommand = (requestId) => {
+  if (!requestId) return null;
+  const pending = pendingCommands.get(requestId) || null;
+  if (pending) pendingCommands.delete(requestId);
+  return pending;
 };
 
 const shouldRetryWithoutNewColumns = (error) => {
@@ -464,19 +530,48 @@ const handleMqttMessage = async (topic, message) => {
   }
 
   const discoveredTopicRoot = isSmartControlTopicRoot(identity.topicRoot);
-  if (discoveredTopicRoot && normalizeTopicRoot(device.mqtt_topic || '') !== discoveredTopicRoot) {
+  if (discoveredTopicRoot) {
+    const currentConfiguration = parseJsonField(device.configuration);
     const healedTopics = buildMqttTopics({ ...device, mqtt_topic: discoveredTopicRoot });
-    updatePayload.mqtt_topic = discoveredTopicRoot;
+    const knownTopicRoots = Array.from(new Set([
+      ...(Array.isArray(currentConfiguration.known_topic_roots) ? currentConfiguration.known_topic_roots : []),
+      normalizeTopicRoot(device.mqtt_topic || ''),
+      normalizeTopicRoot(currentConfiguration.discovered_topic_root || ''),
+      discoveredTopicRoot,
+    ].filter(Boolean)));
+    if (normalizeTopicRoot(device.mqtt_topic || '') !== discoveredTopicRoot) {
+      updatePayload.mqtt_topic = discoveredTopicRoot;
+    }
     updatePayload.configuration = {
-      ...parseJsonField(device.configuration),
+      ...currentConfiguration,
       ...(updatePayload.configuration || {}),
       mqtt_topics: healedTopics,
       discovered_topic_root: discoveredTopicRoot,
       discovered_topic_root_at: now,
+      known_topic_roots: knownTopicRoots,
     };
   }
 
   await safeUpdateDevice(device.id, updatePayload);
+
+  let ackEvent = null;
+  if (eventType === 'ack') {
+    const requestId = payload.request_id || payload.requestId || '';
+    const pendingCommand = resolvePendingCommand(requestId);
+    ackEvent = {
+      type: 'command_ack',
+      device_id: device.id,
+      external_device_id: device.device_id || identity.deviceId,
+      user_id: device.user_id,
+      request_id: requestId,
+      command: payload.command || pendingCommand?.command || '',
+      accepted: payload.accepted !== false,
+      reason: payload.reason || (payload.accepted === false ? 'rejected' : 'ok'),
+      topic,
+      pending_matched: Boolean(pendingCommand),
+      updated_at: now,
+    };
+  }
 
   sendRealtimeEvent({
     type: 'device_state',
@@ -488,6 +583,8 @@ const handleMqttMessage = async (topic, message) => {
     payload,
     updated_at: now,
   });
+
+  if (ackEvent) sendRealtimeEvent(ackEvent);
 
   await logEvent({
     deviceId: device.id,
@@ -522,6 +619,12 @@ mqttClient.on('message', (topic, message) => {
 
 mqttClient.on('reconnect', () => {
   console.log('Reconectando ao broker MQTT...');
+  sendRealtimeEvent({
+    type: 'mqtt_status',
+    mqtt_connected: false,
+    event_type: 'reconnect',
+    updated_at: new Date().toISOString(),
+  });
 });
 
 mqttClient.on('offline', () => {
@@ -600,9 +703,85 @@ const markStaleDevicesOffline = async () => {
   }));
 };
 
+const markTimedOutPendingCommands = async () => {
+  const nowMs = Date.now();
+  const timedOut = Array.from(pendingCommands.entries()).filter(([, pending]) => pending.expiresAtMs <= nowMs);
+  if (timedOut.length === 0) return;
+
+  await Promise.all(timedOut.map(async ([requestId, pending]) => {
+    pendingCommands.delete(requestId);
+    const now = new Date().toISOString();
+    const { data: device } = await supabase
+      .from('devices')
+      .select('id,user_id,device_id,last_state,telemetry')
+      .eq('id', pending.deviceId)
+      .maybeSingle();
+
+    const timeoutAck = {
+      request_id: requestId,
+      command: pending.command,
+      accepted: false,
+      reason: 'ack_timeout',
+      received_at: now,
+      source: 'backend_timeout',
+    };
+    const timeoutPatch = {
+      last_ack: timeoutAck,
+      last_ack_at: now,
+      last_command_status: 'timeout',
+      last_command_reason: 'ack_timeout',
+      last_command_at: now,
+      pending_command: null,
+      pending_command_payload: null,
+      pending_command_at: null,
+      pending_command_topic: null,
+      pending_command_module: null,
+      pending_command_user_id: null,
+      pending_request_id: null,
+      pending_command_expires_at: null,
+    };
+
+    if (device) {
+      await safeUpdateDevice(device.id, {
+        updated_at: now,
+        last_state: {
+          ...parseJsonField(device.last_state),
+          ...timeoutPatch,
+        },
+        telemetry: {
+          ...parseJsonField(device.telemetry),
+          ...timeoutPatch,
+        },
+      });
+    }
+
+    sendRealtimeEvent({
+      type: 'command_ack',
+      device_id: pending.deviceId,
+      external_device_id: pending.externalDeviceId,
+      user_id: pending.userId,
+      request_id: requestId,
+      command: pending.command,
+      accepted: false,
+      reason: 'ack_timeout',
+      updated_at: now,
+    });
+
+    await logEvent({
+      deviceId: pending.deviceId,
+      userId: pending.userId,
+      type: 'command_ack_timeout',
+      payload: { request_id: requestId, command: pending.command, topic: pending.topic },
+    });
+  }));
+};
+
 setInterval(() => {
   markStaleDevicesOffline().catch((error) => {
     console.warn('Erro ao marcar dispositivos offline:', error.message);
+  });
+  markTimedOutPendingCommands().catch((error) => {
+    console.warn('Erro ao expirar comandos pendentes:', error.message);
   });
 }, deviceHeartbeatSweepIntervalMs);
 
@@ -822,8 +1001,12 @@ const publishJson = async (topic, payload, options = {}) => {
 };
 
 const publishCommandForDevice = async ({ device, command, payload, module, userId }) => {
-  const topics = buildMqttTopics(device);
+  const topicRoots = resolveCommandTopicRoots(device);
+  const topicsByRoot = topicRoots.map((root) => buildMqttTopics({ ...device, mqtt_topic: root }));
+  const primaryTopics = topicsByRoot[0] || buildMqttTopics(device);
   const requestId = randomUUID();
+  const sentAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + commandAckTimeoutMs).toISOString();
   const mqttPayload = {
     protocol: 'smartcontrol.mqtt.v1',
     request_id: requestId,
@@ -831,36 +1014,134 @@ const publishCommandForDevice = async ({ device, command, payload, module, userI
     device_id: device.device_id || device.id,
     command,
     payload,
-    sent_at: new Date().toISOString(),
+    sent_at: sentAt,
     user_id: userId || null,
   };
+  const pendingPatch = buildCommandPendingPatch({
+    command,
+    payload,
+    module,
+    requestId,
+    topic: primaryTopics.command,
+    userId,
+    now: sentAt,
+    expiresAt,
+  });
 
-  await publishJson(topics.command, mqttPayload, { qos: 1, retain: false });
+  await safeUpdateDevice(device.id, {
+    updated_at: sentAt,
+    last_state: {
+      ...parseJsonField(device.last_state),
+      ...pendingPatch,
+    },
+    telemetry: {
+      ...parseJsonField(device.telemetry),
+      ...pendingPatch,
+    },
+    configuration: {
+      ...parseJsonField(device.configuration),
+      mqtt_topics: primaryTopics,
+      known_topic_roots: topicRoots,
+      command_ack_timeout_ms: commandAckTimeoutMs,
+    },
+  });
 
-  if (module === 'heltec_esp32_lora_hydroponics' && command === 'set_auto') {
-    await publishJson(
-      topics.config,
-      {
-        ...mqttPayload,
-        command: 'set_config',
-        payload: {
-          enabled: payload.enabled,
-          automatic: payload.enabled,
-          t24: payload.enabled,
-        },
+  rememberPendingCommand({
+    device,
+    mqttPayload,
+    topic: primaryTopics.command,
+    userId,
+  });
+
+  sendRealtimeEvent({
+    type: 'device_state',
+    device_id: device.id,
+    external_device_id: device.device_id || device.id,
+    user_id: device.user_id,
+    event_type: 'command_pending',
+    request_id: requestId,
+    command,
+    updated_at: sentAt,
+  });
+
+  const publishedTopics = [];
+  try {
+    for (const topics of topicsByRoot) {
+      await publishJson(topics.command, mqttPayload, { qos: 1, retain: false });
+      publishedTopics.push(topics.command);
+    }
+
+    if (module === 'heltec_esp32_lora_hydroponics' && command === 'set_auto') {
+      for (const topics of topicsByRoot) {
+        await publishJson(
+          topics.config,
+          {
+            ...mqttPayload,
+            command: 'set_config',
+            payload: {
+              enabled: payload.enabled,
+              automatic: payload.enabled,
+              t24: payload.enabled,
+            },
+          },
+          { qos: 1, retain: false },
+        );
+        publishedTopics.push(topics.config);
+      }
+    }
+  } catch (error) {
+    const failedAt = new Date().toISOString();
+    pendingCommands.delete(requestId);
+    const failurePatch = {
+      last_command_status: 'failed',
+      last_command_reason: error.message || 'mqtt_publish_failed',
+      last_command_at: failedAt,
+      last_ack: {
+        request_id: requestId,
+        command,
+        accepted: false,
+        reason: error.message || 'mqtt_publish_failed',
+        received_at: failedAt,
+        source: 'backend_publish',
       },
-      { qos: 1, retain: false },
-    );
+      last_ack_at: failedAt,
+    };
+
+    await safeUpdateDevice(device.id, {
+      updated_at: failedAt,
+      last_state: {
+        ...parseJsonField(device.last_state),
+        ...failurePatch,
+      },
+      telemetry: {
+        ...parseJsonField(device.telemetry),
+        ...failurePatch,
+      },
+    });
+
+    sendRealtimeEvent({
+      type: 'command_ack',
+      device_id: device.id,
+      external_device_id: device.device_id || device.id,
+      user_id: device.user_id,
+      request_id: requestId,
+      command,
+      accepted: false,
+      reason: error.message || 'mqtt_publish_failed',
+      updated_at: failedAt,
+    });
+
+    throw error;
   }
 
   await logEvent({
     deviceId: device.id,
     userId,
     type: 'command_sent',
-    payload: { topic: topics.command, payload: mqttPayload },
+    payload: { topic: primaryTopics.command, topics: publishedTopics, payload: mqttPayload, ack_timeout_ms: commandAckTimeoutMs },
   });
 
-  return { status: 'sent', topic: topics.command, payload: mqttPayload };
+  return { status: 'sent', request_id: requestId, topic: primaryTopics.command, topics: publishedTopics, payload: mqttPayload };
 };
 
 const publishConfigForDevice = async ({ device, config, userId }) => {
@@ -1009,6 +1290,8 @@ app.get('/health', (req, res) => {
     auth_required: requireAuth,
     device_token_required: requireDeviceToken,
     heartbeat_timeout_ms: deviceHeartbeatTimeoutMs,
+    command_ack_timeout_ms: commandAckTimeoutMs,
+    pending_commands: pendingCommands.size,
   });
 });
 

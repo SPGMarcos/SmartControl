@@ -179,7 +179,7 @@ export const getDeviceProtocolLabel = (device) => {
 
 export const isDeviceOnline = (device) => {
   const lastHeartbeat = device?.last_heartbeat ? new Date(device.last_heartbeat).getTime() : null;
-  const heartbeatIsFresh = lastHeartbeat ? Date.now() - lastHeartbeat < 90 * 1000 : false;
+  const heartbeatIsFresh = lastHeartbeat ? Date.now() - lastHeartbeat < 180 * 1000 : false;
   const rawStatus = device?.connection_status || device?.online_status;
 
   if (typeof rawStatus === 'string') {

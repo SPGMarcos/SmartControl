@@ -17,6 +17,15 @@ class CommandManager {
     String cmd = command;
     if (configTopic && (!cmd.length() || cmd == "set_config")) cmd = "set_config";
 
+    if (isDuplicateRequest(requestId)) {
+      Serial.print("[SmartControl] Comando duplicado ignorado: ");
+      Serial.println(requestId);
+      mqttManager.publishAck(requestId, cmd, true, "duplicate_ignored");
+      mqttManager.publishStatus();
+      return;
+    }
+    rememberRequest(requestId);
+
     if (cmd == "set_config") {
       applyConfig(data, requestId, cmd);
       return;
@@ -82,6 +91,20 @@ class CommandManager {
   RelayManager& relayManager;
   StorageManager& storage;
   MqttManager& mqttManager;
+  String lastRequestId = "";
+  unsigned long lastRequestAt = 0;
+
+  bool isDuplicateRequest(const String& requestId) const {
+    return requestId.length() &&
+           requestId == lastRequestId &&
+           millis() - lastRequestAt < 20000UL;
+  }
+
+  void rememberRequest(const String& requestId) {
+    if (!requestId.length()) return;
+    lastRequestId = requestId;
+    lastRequestAt = millis();
+  }
 
   void applyConfig(JsonObject data, const String& requestId, const String& command) {
     bool changed = false;

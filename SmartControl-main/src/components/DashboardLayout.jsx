@@ -133,7 +133,7 @@ const DashboardLayout = ({ children }) => {
         </header>
 
         <main className="dashboard-main">
-          <div className="min-h-[calc(100vh-64px)] max-w-full px-3 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-6">
+          <div className="min-h-[calc(100vh-52px)] max-w-full px-3 pb-24 pt-2 sm:px-6 sm:pt-3 lg:px-8 lg:pb-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

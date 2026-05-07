@@ -63,8 +63,7 @@ const Register = () => {
         <meta name="description" content="Crie sua conta SmartControl e comece a automatizar seus dispositivos IoT." />
       </Helmet>
 
-      <div className="mobile-wrap flex min-h-screen items-center justify-center overflow-x-hidden bg-black px-3 sm:px-4">
-        <div className="absolute inset-0 gradient-purple opacity-30"></div>
+      <div className="auth-shell mobile-wrap flex min-h-screen items-center justify-center overflow-x-hidden px-3 py-8 sm:px-4">
         <ThemeToggle className="fixed right-4 top-4 z-20" />
 
         <motion.div
@@ -73,17 +72,17 @@ const Register = () => {
           transition={{ duration: 0.5 }}
           className="w-full max-w-md relative z-10"
         >
-          <div className="gradient-card mobile-card rounded-2xl border border-purple-500/30 p-5 sm:p-8">
+          <div className="auth-card mobile-card rounded-2xl p-5 sm:p-8">
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-white mb-2">
-                Smart<span className="text-purple-400">Control</span>
+              <h1 className="auth-brand-title text-3xl font-bold mb-2">
+                Smart<span className="auth-brand-accent">Control</span>
               </h1>
-              <p className="text-gray-400">Crie sua conta</p>
+              <p className="auth-muted">Crie sua conta</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <Label htmlFor="name" className="text-white">Nome</Label>
+                <Label htmlFor="name" className="auth-label">Nome</Label>
                 <Input
                   id="name"
                   type="text"
@@ -91,13 +90,13 @@ const Register = () => {
                   onChange={(e) => setName(e.target.value)}
                   required
                   autoComplete="name"
-                  className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                  className="mt-2"
                   placeholder="Seu nome"
                 />
               </div>
 
               <div>
-                <Label htmlFor="email" className="text-white">Email</Label>
+                <Label htmlFor="email" className="auth-label">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -105,13 +104,13 @@ const Register = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                  className="mt-2"
                   placeholder="seu@email.com"
                 />
               </div>
 
               <div className="relative">
-                <Label htmlFor="password" className="text-white">Senha</Label>
+                <Label htmlFor="password" className="auth-label">Senha</Label>
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -119,12 +118,12 @@ const Register = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="new-password"
-                  className="mt-2 bg-black/50 border-purple-500/30 text-white pr-10"
+                  className="mt-2 pr-20"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-9 text-xs text-purple-400 hover:text-purple-200"
+                  className="auth-inline-button absolute right-2 top-9 rounded-md px-2 py-1 text-xs font-medium"
                   onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
                 >
@@ -133,7 +132,7 @@ const Register = () => {
               </div>
 
               <div className="relative">
-                <Label htmlFor="confirmPassword" className="text-white">Confirme a Senha</Label>
+                <Label htmlFor="confirmPassword" className="auth-label">Confirme a Senha</Label>
                 <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
@@ -141,12 +140,12 @@ const Register = () => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   autoComplete="new-password"
-                  className="mt-2 bg-black/50 border-purple-500/30 text-white pr-10"
+                  className="mt-2 pr-20"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-9 text-xs text-purple-400 hover:text-purple-200"
+                  className="auth-inline-button absolute right-2 top-9 rounded-md px-2 py-1 text-xs font-medium"
                   onClick={() => setShowConfirmPassword((v) => !v)}
                   tabIndex={-1}
                 >
@@ -155,7 +154,7 @@ const Register = () => {
               </div>
 
               {formError && (
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                <div className="auth-alert-danger rounded-xl px-4 py-3 text-sm">
                   {formError}
                 </div>
               )}
@@ -163,7 +162,7 @@ const Register = () => {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                className="w-full"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
                 {loading ? 'Criando conta...' : 'Criar Conta'}
@@ -171,13 +170,13 @@ const Register = () => {
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-gray-400">
+              <p className="auth-muted">
                 Já tem uma conta?{' '}
-                <Link to="/login" className="text-purple-400 hover:text-purple-300">
+                <Link to="/login" className="auth-link font-medium">
                   Faça login
                 </Link>
               </p>
-              <Link to="/" className="text-purple-400 hover:text-purple-300 text-sm mt-2 inline-block">
+              <Link to="/" className="auth-link text-sm mt-2 inline-block font-medium">
                 Voltar para home
               </Link>
             </div>

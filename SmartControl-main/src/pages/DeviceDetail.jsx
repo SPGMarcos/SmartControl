@@ -124,6 +124,15 @@ const DeviceDetail = () => {
   };
 
   useEffect(() => {
+    let refreshTimer = null;
+    const scheduleRefresh = (delay = 80) => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        fetchDevice();
+      }, delay);
+    };
+
     fetchDevice({ showLoader: true });
 
     const polling = window.setInterval(() => {
@@ -132,12 +141,16 @@ const DeviceDetail = () => {
 
     const unsubscribeBackendEvents = subscribeBackendEvents({
       onDeviceState: (event) => {
-        if (event.device_id === id) fetchDevice();
+        if (event.device_id === id) scheduleRefresh();
+      },
+      onCommandAck: (event) => {
+        if (event.device_id === id) scheduleRefresh(30);
       },
     });
 
     return () => {
       window.clearInterval(polling);
+      if (refreshTimer) window.clearTimeout(refreshTimer);
       unsubscribeBackendEvents();
     };
   }, [user, id]);
@@ -146,7 +159,8 @@ const DeviceDetail = () => {
     if (!device) return;
     setSending(true);
 
-    const optimisticDevice = applyHydroponicsCommandState(device, commandPayload);
+    const shouldWaitForFirmware = commandPayload?.requiresStateConfirmation === true;
+    const optimisticDevice = shouldWaitForFirmware ? device : applyHydroponicsCommandState(device, commandPayload);
     const hasOptimisticUpdate = optimisticDevice !== device;
 
     if (hasOptimisticUpdate) {
@@ -167,34 +181,49 @@ const DeviceDetail = () => {
         description: 'Configure VITE_BACKEND_URL para enviar comandos MQTT.',
       });
       setSending(false);
-      return;
+      return { ok: false, error: 'backend_not_configured' };
     }
 
     const endpoint = commandPayload?.useConfigTopic
       ? `/api/devices/${device.id}/config`
       : '/api/command';
 
-    const response = await fetch(`${backendUrl}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify(commandPayload?.useConfigTopic
-        ? {
-            ...(commandPayload?.payload || {}),
-            user_id: user?.id,
-          }
-        : {
-            device_id: device.id,
-            command: commandPayload?.command || commandPayload,
-            payload: commandPayload?.payload || {},
-            module: commandPayload?.module,
-            user_id: user?.id,
-          }),
-    });
+    let response;
+    let payload = {};
 
-    const payload = await response.json();
+    try {
+      response = await fetch(`${backendUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify(commandPayload?.useConfigTopic
+          ? {
+              ...(commandPayload?.payload || {}),
+              user_id: user?.id,
+            }
+          : {
+              device_id: device.id,
+              command: commandPayload?.command || commandPayload,
+              payload: commandPayload?.payload || {},
+              module: commandPayload?.module,
+              user_id: user?.id,
+            }),
+      });
+
+      payload = await response.json();
+    } catch (error) {
+      restoreDevice();
+      toast({
+        variant: 'destructive',
+        title: 'Backend indisponivel',
+        description: 'Nao foi possivel enviar o comando agora. Tente novamente em instantes.',
+      });
+      setSending(false);
+      return { ok: false, error: 'backend_unavailable' };
+    }
+
     if (!response.ok) {
       restoreDevice();
       toast({
@@ -203,16 +232,19 @@ const DeviceDetail = () => {
         description: payload.error || 'Tente novamente mais tarde.',
       });
       setSending(false);
-      return;
+      return { ok: false, error: payload.error || 'command_failed' };
     }
 
     toast({
       title: commandPayload?.useConfigTopic ? 'ConfiguraÃ§Ã£o enviada' : 'Comando enviado',
       description: commandPayload?.useConfigTopic
         ? `Ajustes enviados para ${device.name}.`
-        : `Comando '${commandPayload?.command || commandPayload}' enviado para ${device.name}.`,
+        : commandPayload?.requiresStateConfirmation
+          ? `Aguardando confirmacao da firmware de ${device.name}.`
+          : `Comando '${commandPayload?.command || commandPayload}' enviado para ${device.name}.`,
     });
     setSending(false);
+    return { ok: true, ...payload };
   };
 
   const handleSendCommand = async (event) => {

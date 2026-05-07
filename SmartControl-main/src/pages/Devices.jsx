@@ -37,6 +37,15 @@ const Devices = () => {
   useEffect(() => {
     if (!user) return undefined;
 
+    let refreshTimer = null;
+    const scheduleRefresh = (delay = 120) => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        fetchDevices();
+      }, delay);
+    };
+
     fetchDevices({ showLoader: true });
 
     const polling = window.setInterval(() => {
@@ -45,21 +54,25 @@ const Devices = () => {
 
     const deviceSub = supabase.channel('devices-page')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'devices', filter: `user_id=eq.${user?.id}` }, () => {
-        fetchDevices();
+        scheduleRefresh();
       })
       .subscribe();
 
     const unsubscribeBackendEvents = subscribeBackendEvents({
       onDeviceState: (event) => {
-        if (!event.user_id || event.user_id === user?.id) fetchDevices();
+        if (!event.user_id || event.user_id === user?.id) scheduleRefresh();
+      },
+      onCommandAck: (event) => {
+        if (!event.user_id || event.user_id === user?.id) scheduleRefresh(40);
       },
       onDeviceDiscovered: () => {
-        fetchDevices();
+        scheduleRefresh();
       },
     });
 
     return () => {
       window.clearInterval(polling);
+      if (refreshTimer) window.clearTimeout(refreshTimer);
       supabase.removeChannel(deviceSub);
       unsubscribeBackendEvents();
     };
@@ -109,14 +122,14 @@ const Devices = () => {
       </Helmet>
 
       <DashboardLayout>
-        <div className="space-y-6 sm:space-y-8">
+        <div className="space-y-5 sm:space-y-7">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <h1 className="text-3xl font-bold text-white mb-2">Dispositivos</h1>
-              <p className="text-gray-400">Gerencie todos os seus dispositivos IoT</p>
+              <h1 className="theme-title text-3xl font-bold mb-2">Dispositivos</h1>
+              <p className="theme-muted">Gerencie todos os seus dispositivos IoT</p>
             </div>
             <Link to="/add-device" className="w-full sm:w-auto">
-              <Button className="w-full bg-purple-600 hover:bg-purple-700 sm:w-auto">
+              <Button className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 Adicionar Dispositivo
               </Button>
@@ -124,18 +137,18 @@ const Devices = () => {
           </div>
 
           {loading ? (
-            <div className="text-white">Carregando dispositivos...</div>
+            <div className="theme-muted">Carregando dispositivos...</div>
           ) : devices.length > 0 ? (
             <div className="space-y-8">
               {groupDevicesByProject(devices).map((project) => (
                 <section key={project.id} className="space-y-4">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex-none rounded-xl border border-purple-400/30 bg-purple-500/10 p-2">
-                      <Layers className="h-5 w-5 text-purple-300" />
+                    <span className="theme-badge flex-none rounded-xl p-2">
+                      <Layers className="theme-icon h-5 w-5" />
                     </span>
                     <div className="min-w-0">
-                      <h2 className="text-2xl font-bold text-white">{project.name}</h2>
-                      <p className="text-sm text-gray-400">
+                      <h2 className="theme-title text-2xl font-bold">{project.name}</h2>
+                      <p className="theme-muted text-sm">
                         {project.totalDevices} dispositivo{project.totalDevices > 1 ? 's' : ''} neste projeto
                       </p>
                     </div>
@@ -159,13 +172,13 @@ const Devices = () => {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="gradient-card rounded-xl border border-purple-500/30 px-4 py-16 text-center sm:py-20"
+              className="theme-card rounded-xl px-4 py-16 text-center sm:py-20"
             >
-              <p className="text-gray-400 text-lg mb-4">
+              <p className="theme-muted text-lg mb-4">
                 Você ainda não tem dispositivos cadastrados
               </p>
               <Link to="/add-device" className="inline-block w-full sm:w-auto">
-                <Button className="w-full bg-purple-600 hover:bg-purple-700 sm:w-auto">
+                <Button className="w-full sm:w-auto">
                   <Plus className="w-4 h-4 mr-2" />
                   Adicionar Primeiro Dispositivo
                 </Button>

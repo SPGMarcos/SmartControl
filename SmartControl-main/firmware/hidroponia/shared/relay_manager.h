@@ -23,6 +23,14 @@ class RelayManager {
   }
 
   void setAutomatic(bool enabled) {
+    if (config.automatic == enabled) {
+      if (enabled && !config.oxygenator) {
+        config.oxygenator = true;
+        applyOutputs();
+      }
+      return;
+    }
+
     config.automatic = enabled;
     phaseStartedAt = millis();
     if (enabled) {
@@ -92,6 +100,11 @@ class RelayManager {
 
   unsigned long elapsedSeconds() const {
     return (millis() - phaseStartedAt) / 1000UL;
+  }
+
+  const char* phaseText() const {
+    if (!config.automatic) return "manual";
+    return config.pump ? "on" : "off";
   }
 
   void applyOutputs() {

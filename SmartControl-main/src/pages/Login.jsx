@@ -275,8 +275,7 @@ const Login = () => {
         <meta name="description" content="Faça login na sua conta SmartControl para acessar seus dispositivos IoT." />
       </Helmet>
 
-      <div className="mobile-wrap flex min-h-screen items-center justify-center overflow-x-hidden bg-black px-3 sm:px-4">
-        <div className="absolute inset-0 gradient-purple opacity-30"></div>
+      <div className="auth-shell mobile-wrap flex min-h-screen items-center justify-center overflow-x-hidden px-3 py-8 sm:px-4">
         <ThemeToggle className="fixed right-4 top-4 z-20" />
         
         <motion.div
@@ -285,42 +284,42 @@ const Login = () => {
           transition={{ duration: 0.5 }}
           className="w-full max-w-md relative z-10"
         >
-          <div className="gradient-card mobile-card rounded-2xl border border-purple-500/30 p-5 sm:p-8">
+          <div className="auth-card mobile-card rounded-2xl p-5 sm:p-8">
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-white mb-2">
-                Smart<span className="text-purple-400">Control</span>
+              <h1 className="auth-brand-title text-3xl font-bold mb-2">
+                Smart<span className="auth-brand-accent">Control</span>
               </h1>
-              <p className="text-gray-400">Entre na sua conta</p>
+              <p className="auth-muted">Entre na sua conta</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <Label htmlFor="email" className="text-white">Email</Label>
+                <Label htmlFor="email" className="auth-label">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                  className="mt-2"
                   placeholder="seu@email.com"
                 />
               </div>
 
               <div className="relative">
-                <Label htmlFor="password" className="text-white">Senha</Label>
+                <Label htmlFor="password" className="auth-label">Senha</Label>
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="mt-2 bg-black/50 border-purple-500/30 text-white pr-10"
+                  className="mt-2 pr-20"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-9 text-xs text-purple-400 hover:text-purple-200"
+                  className="auth-inline-button absolute right-2 top-9 rounded-md px-2 py-1 text-xs font-medium"
                   onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
                 >
@@ -330,30 +329,30 @@ const Login = () => {
                   <button
                     type="button"
                     onClick={openResetRequest}
-                    className="text-sm font-medium text-purple-400 hover:text-purple-200"
+                    className="auth-inline-button text-sm font-medium"
                   >
                     Recuperar senha
                   </button>
                 </div>
               </div>
 
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-purple-500/20 bg-black/30 p-3 text-sm text-gray-300">
+              <label className="auth-soft-panel flex cursor-pointer items-start gap-3 rounded-xl p-3 text-sm">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(event) => setRememberMe(event.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-purple-500/50 bg-black accent-purple-600"
+                  className="mt-1 h-4 w-4 rounded accent-purple-600"
                 />
                 <span>
-                  <span className="block font-medium text-white">Lembrar de mim neste dispositivo</span>
-                  <span className="mt-1 block leading-5 text-gray-500">
+                  <span className="auth-label block font-medium">Lembrar de mim neste dispositivo</span>
+                  <span className="auth-subtle mt-1 block leading-5">
                     Desmarcado, o acesso nao sobrevive ao fechamento do navegador e expira apos 10 minutos sem atividade.
                   </span>
                 </span>
               </label>
 
               {loginError && (
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                <div className="auth-alert-danger rounded-xl px-4 py-3 text-sm">
                   {loginError}
                 </div>
               )}
@@ -361,7 +360,7 @@ const Login = () => {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                className="w-full"
               >
                 <LogIn className="w-4 h-4 mr-2" />
                 {loading ? 'Entrando...' : 'Entrar'}
@@ -369,13 +368,13 @@ const Login = () => {
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-gray-400">
+              <p className="auth-muted">
                 Não tem uma conta?{' '}
-                <Link to="/register" className="text-purple-400 hover:text-purple-300">
+                <Link to="/register" className="auth-link font-medium">
                   Cadastre-se
                 </Link>
               </p>
-              <Link to="/" className="text-purple-400 hover:text-purple-300 text-sm mt-2 inline-block">
+              <Link to="/" className="auth-link text-sm mt-2 inline-block font-medium">
                 Voltar para home
               </Link>
             </div>
@@ -392,23 +391,22 @@ const Login = () => {
             <button
               type="button"
               aria-label="Fechar recuperação de senha"
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              className="auth-modal-backdrop absolute inset-0"
               onClick={() => setResetOpen(false)}
             />
 
-            <div className="relative z-10 max-h-[calc(100vh-3rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-purple-500/30 bg-black shadow-2xl shadow-purple-950/40 sm:max-h-[calc(100vh-4rem)]">
-              <div className="absolute inset-0 gradient-purple opacity-20" />
+            <div className="auth-card relative z-10 max-h-[calc(100vh-3rem)] w-full max-w-lg overflow-y-auto rounded-2xl sm:max-h-[calc(100vh-4rem)]">
               <div className="relative p-4 sm:p-8">
                 <div className="mb-6 flex items-start justify-between gap-4">
                   <div>
-                    <div className="theme-readable-pill mb-3 inline-flex max-w-full items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-1 text-sm text-purple-200">
+                    <div className="theme-readable-pill mb-3 inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-sm">
                       {resetMode === 'update' ? <KeyRound className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
                       Segurança da conta
                     </div>
-                    <h2 id="password-recovery-title" className="text-2xl font-bold text-white">
+                    <h2 id="password-recovery-title" className="auth-brand-title text-2xl font-bold">
                       {resetMode === 'update' ? 'Definir nova senha' : 'Recuperar senha'}
                     </h2>
-                    <p className="mt-2 text-sm leading-6 text-gray-400">
+                    <p className="auth-muted mt-2 text-sm leading-6">
                       {resetMode === 'update'
                         ? 'Digite uma nova senha para concluir a recuperação da sua conta SmartControl.'
                         : 'Informe seu email e enviaremos um link seguro para redefinir sua senha.'}
@@ -418,7 +416,7 @@ const Login = () => {
                   <button
                     type="button"
                     onClick={() => setResetOpen(false)}
-                    className="rounded-full border border-white/10 bg-white/5 p-2 text-gray-300 transition hover:border-purple-400/60 hover:text-white"
+                    className="rounded-full border border-[var(--button-outline-border)] bg-[var(--button-outline-bg)] p-2 text-[var(--button-outline-text)] transition hover:border-[var(--accent-purple)] hover:bg-[var(--button-outline-hover)] hover:text-[var(--button-outline-hover-text)]"
                     aria-label="Fechar"
                   >
                     <X className="h-5 w-5" />
@@ -426,23 +424,23 @@ const Login = () => {
                 </div>
 
                 {resetError && (
-                  <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  <div className="auth-alert-danger mb-4 rounded-xl px-4 py-3 text-sm">
                     {resetError}
                   </div>
                 )}
 
                 {resetMode === 'request' ? (
                   resetSent ? (
-                    <div className="rounded-2xl border border-green-500/30 bg-green-500/10 p-5 text-center">
+                    <div className="auth-alert-success rounded-2xl p-5 text-center">
                       <CheckCircle className="mx-auto mb-3 h-10 w-10 text-green-400" />
-                      <h3 className="font-semibold text-white">Link enviado com segurança</h3>
-                      <p className="mt-2 text-sm leading-6 text-gray-300">
+                      <h3 className="font-semibold text-[var(--text-primary)]">Link enviado com segurança</h3>
+                      <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
                         Se o email estiver cadastrado, você receberá as instruções para criar uma nova senha.
                       </p>
                       <Button
                         type="button"
                         onClick={() => setResetOpen(false)}
-                        className="mt-5 bg-purple-600 hover:bg-purple-700"
+                        className="mt-5"
                       >
                         Entendi
                       </Button>
@@ -450,13 +448,13 @@ const Login = () => {
                   ) : (
                     <form onSubmit={handleResetRequest} className="space-y-5">
                       <div>
-                        <Label htmlFor="reset-email" className="text-white">Email cadastrado</Label>
+                        <Label htmlFor="reset-email" className="auth-label">Email cadastrado</Label>
                         <Input
                           id="reset-email"
                           type="email"
                           value={resetEmail}
                           onChange={(e) => setResetEmail(e.target.value)}
-                          className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                          className="mt-2"
                           placeholder="seu@email.com"
                           required
                         />
@@ -465,7 +463,7 @@ const Login = () => {
                       <Button
                         type="submit"
                         disabled={resetLoading}
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                        className="w-full"
                       >
                         <Mail className="mr-2 h-4 w-4" />
                         {resetLoading ? 'Enviando...' : 'Enviar link de recuperação'}
@@ -475,35 +473,35 @@ const Login = () => {
                 ) : (
                   <form onSubmit={handlePasswordUpdate} className="space-y-5">
                     {recoveryLoading && (
-                      <div className="rounded-xl border border-purple-400/30 bg-purple-500/10 px-4 py-3 text-sm text-purple-100">
+                      <div className="theme-badge rounded-xl px-4 py-3 text-sm">
                         Validando link de recuperacao...
                       </div>
                     )}
 
                     <div>
-                      <Label htmlFor="new-password" className="text-white">Nova senha</Label>
+                      <Label htmlFor="new-password" className="auth-label">Nova senha</Label>
                       <Input
                         id="new-password"
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        className="mt-2"
                         placeholder="Mínimo de 8 caracteres"
                         required
                       />
-                      <p className="mt-2 text-xs leading-5 text-gray-400">
+                      <p className="auth-muted mt-2 text-xs leading-5">
                         {PASSWORD_REQUIREMENTS_TEXT}
                       </p>
                     </div>
 
                     <div>
-                      <Label htmlFor="confirm-password" className="text-white">Confirmar nova senha</Label>
+                      <Label htmlFor="confirm-password" className="auth-label">Confirmar nova senha</Label>
                       <Input
                         id="confirm-password"
                         type="password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        className="mt-2"
                         placeholder="Repita a nova senha"
                         required
                       />
@@ -512,7 +510,7 @@ const Login = () => {
                     <Button
                       type="submit"
                       disabled={updateLoading || recoveryLoading || !recoveryReady}
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                      className="w-full"
                     >
                       <KeyRound className="mr-2 h-4 w-4" />
                       {recoveryLoading ? 'Validando link...' : updateLoading ? 'Atualizando...' : 'Salvar nova senha'}

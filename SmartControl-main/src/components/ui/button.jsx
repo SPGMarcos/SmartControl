@@ -4,19 +4,21 @@ import { cva } from 'class-variance-authority';
 import React from 'react';
 
 const buttonVariants = cva(
-	'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+	'inline-flex items-center justify-center rounded-md text-sm font-semibold ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-55 [&_svg]:pointer-events-none [&_svg]:shrink-0',
 	{
 		variants: {
 			variant: {
-				default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+				default: 'border border-transparent bg-[var(--button-primary-bg)] text-[var(--button-primary-text)] shadow-sm shadow-[var(--shadow-color)] hover:bg-[var(--button-primary-hover)] active:scale-[0.99]',
 				destructive:
-          'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+          'border border-transparent bg-[var(--button-danger-bg)] text-[var(--button-danger-text)] shadow-sm hover:bg-[var(--button-danger-hover)] active:scale-[0.99]',
 				outline:
-          'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+          'border border-[var(--button-outline-border)] bg-[var(--button-outline-bg)] text-[var(--button-outline-text)] hover:border-[var(--accent-purple)] hover:bg-[var(--button-outline-hover)] hover:text-[var(--button-outline-hover-text)] active:scale-[0.99]',
 				secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-				ghost: 'hover:bg-accent hover:text-accent-foreground',
-				link: 'text-primary underline-offset-4 hover:underline',
+          'border border-[var(--border-color)] bg-[var(--button-secondary-bg)] text-[var(--button-secondary-text)] hover:bg-[var(--button-secondary-hover)] active:scale-[0.99]',
+        success:
+          'border border-transparent bg-[var(--button-success-bg)] text-[var(--button-success-text)] hover:bg-[var(--button-success-hover)] active:scale-[0.99]',
+				ghost: 'text-[var(--button-ghost-text)] hover:bg-[var(--button-ghost-hover)] hover:text-[var(--text-strong)]',
+				link: 'text-[var(--link-color)] underline-offset-4 hover:text-[var(--link-hover)] hover:underline',
 			},
 			size: {
 				default: 'h-10 px-4 py-2',

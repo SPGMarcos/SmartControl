@@ -23,8 +23,8 @@ class MqttManager {
     commandHandler = handler;
     client.setCallback(staticCallback);
     client.setBufferSize(1536);
-    client.setKeepAlive(45);
-    client.setSocketTimeout(8);
+    client.setKeepAlive(30);
+    client.setSocketTimeout(6);
     activeInstance = this;
   }
 
@@ -33,15 +33,15 @@ class MqttManager {
     reconnect();
     client.loop();
 
-    if (client.connected() && millis() - lastHeartbeatAt > 20000UL) {
+    if (client.connected() && millis() - lastHeartbeatAt > HEARTBEAT_INTERVAL_MS) {
       lastHeartbeatAt = millis();
       publishStatus("heartbeat");
     }
   }
 
-  bool connected() const {
+  bool connected() {
     return client.connected();
-  }
+}
 
   String baseTopic() const {
     String base = config.mqttTopic;
@@ -74,7 +74,7 @@ class MqttManager {
   }
 
   void publishAck(const String& requestId, const String& command, bool accepted, const String& reason = "ok") {
-    StaticJsonDocument<384> doc;
+    StaticJsonDocument<768> doc;
     doc["protocol"] = protocolText();
     doc["uuid"] = config.deviceUuid;
     doc["device_id"] = config.deviceId;
@@ -83,7 +83,16 @@ class MqttManager {
     doc["command"] = command;
     doc["accepted"] = accepted;
     doc["reason"] = reason;
+    doc["t24"] = config.automatic;
+    doc["v1"] = config.pump;
+    doc["v2"] = config.oxygenator;
+    doc["tOn"] = config.tOnMin;
+    doc["tOff"] = config.tOffMin;
+    doc["rem"] = relayManager.remainingSeconds();
+    doc["elapsed"] = relayManager.elapsedSeconds();
+    doc["phase"] = relayManager.phaseText();
     doc["uptime_ms"] = millis();
+    doc["published_at_ms"] = millis();
     publishJson("ack", doc, false);
   }
 
@@ -119,6 +128,7 @@ class MqttManager {
     doc["tOff"] = config.tOffMin;
     doc["rem"] = relayManager.remainingSeconds();
     doc["elapsed"] = relayManager.elapsedSeconds();
+    doc["phase"] = relayManager.phaseText();
     doc["sequence"] = ++statusSequence;
     doc["wifi_rssi"] = WiFi.RSSI();
     doc["heap"] = ESP.getFreeHeap();
@@ -127,7 +137,10 @@ class MqttManager {
     doc["reset_reason"] = resetReasonText();
     doc["mqtt_state"] = client.state();
     doc["reconnect_delay_ms"] = reconnectDelayMs;
+    doc["heartbeat_interval_ms"] = HEARTBEAT_INTERVAL_MS;
+    doc["mqtt_keepalive_s"] = 30;
     doc["uptime_ms"] = millis();
+    doc["published_at_ms"] = millis();
     publishJson(eventType, doc, strcmp(eventType, "status") == 0);
   }
 
@@ -148,6 +161,8 @@ class MqttManager {
   uint32_t statusSequence = 0;
   bool pendingStatus = false;
   static MqttManager* activeInstance;
+  static constexpr unsigned long HEARTBEAT_INTERVAL_MS = 15000UL;
+  static constexpr unsigned long MQTT_RECONNECT_MAX_MS = 30000UL;
 
   bool publishJson(const String& suffix, JsonDocument& doc, bool retained) {
     if (!client.connected()) {
@@ -160,6 +175,10 @@ class MqttManager {
     const String topic = baseTopic() + "/" + suffix;
     const bool ok = client.publish(topic.c_str(), (const uint8_t*)buffer, length, retained);
     if (!ok && (suffix == "status" || suffix == "heartbeat" || suffix == "telemetry")) pendingStatus = true;
+    Serial.print("[SmartControl MQTT] publish ");
+    Serial.print(topic);
+    Serial.print(ok ? " ok " : " falhou ");
+    Serial.println(length);
     return ok;
   }
 
@@ -205,8 +224,8 @@ class MqttManager {
     }
 
     client.setServer(mqttHost.c_str(), mqttPort);
-    client.setKeepAlive(45);
-    client.setSocketTimeout(8);
+    client.setKeepAlive(30);
+    client.setSocketTimeout(6);
 
     const String clientId = "SmartControl-" + config.deviceId + "-" + chipSuffix();
     const String willTopic = baseTopic() + "/availability";
@@ -218,15 +237,26 @@ class MqttManager {
     const char* user = config.mqttUser.length() ? config.mqttUser.c_str() : nullptr;
     const char* pass = config.mqttPass.length() ? config.mqttPass.c_str() : nullptr;
 
+    Serial.print("[SmartControl MQTT] conectando em ");
+    Serial.print(mqttHost);
+    Serial.print(":");
+    Serial.print(mqttPort);
+    Serial.print(" topico ");
+    Serial.println(baseTopic());
+
     if (client.connect(clientId.c_str(), user, pass, willTopic.c_str(), 1, true, willPayload.c_str())) {
       reconnectDelayMs = 5000UL;
       client.subscribe((baseTopic() + "/cmd").c_str(), 1);
       client.subscribe((baseTopic() + "/config").c_str(), 1);
       publishAvailability("online");
       if (pendingStatus) pendingStatus = false;
+      lastHeartbeatAt = millis();
       publishStatus();
+      Serial.println("[SmartControl MQTT] conectado e inscrito.");
     } else {
-      reconnectDelayMs = min(reconnectDelayMs * 2UL, 120000UL);
+      Serial.print("[SmartControl MQTT] falha state=");
+      Serial.println(client.state());
+      reconnectDelayMs = min(reconnectDelayMs * 2UL, MQTT_RECONNECT_MAX_MS);
     }
   }
 
@@ -272,12 +302,21 @@ class MqttManager {
   void handleMessage(char* topic, byte* payload, unsigned int length) {
     StaticJsonDocument<1024> doc;
     DeserializationError error = deserializeJson(doc, payload, length);
-    if (error) return;
+    if (error) {
+      Serial.print("[SmartControl MQTT] JSON invalido em ");
+      Serial.println(topic);
+      return;
+    }
 
     String requestId = doc["request_id"] | "";
     String command = doc["command"] | "";
     String incomingDeviceId = doc["device_id"] | "";
     if (incomingDeviceId.length() && incomingDeviceId != config.deviceId) return;
+
+    Serial.print("[SmartControl MQTT] comando recebido em ");
+    Serial.print(topic);
+    Serial.print(" request=");
+    Serial.println(requestId);
 
     String topicText = String(topic);
     bool configTopic = topicText.endsWith("/config");

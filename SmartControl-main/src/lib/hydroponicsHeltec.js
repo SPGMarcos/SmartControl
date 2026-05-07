@@ -123,6 +123,13 @@ export const normalizeHydroponicsState = (device = {}) => {
     hardwareVersion: state.modelo || state.model || state.hardware || state.hardware_version || device.hardware_version || 'ESP32',
     capabilities: capabilities?.relays ? capabilities : HYDROPONICS_CAPABILITIES,
     lastSeen: device.last_heartbeat || state.last_seen || device.updated_at || device.created_at,
+    updatedAt: device.updated_at || state.updated_at || device.last_heartbeat || device.created_at,
+    lastAck: state.last_ack || telemetry.last_ack || lastState.last_ack || null,
+    pendingCommand: state.pending_command || telemetry.pending_command || lastState.pending_command || null,
+    pendingRequestId: state.pending_request_id || telemetry.pending_request_id || lastState.pending_request_id || '',
+    pendingCommandAt: state.pending_command_at || telemetry.pending_command_at || lastState.pending_command_at || null,
+    lastCommandStatus: state.last_command_status || telemetry.last_command_status || lastState.last_command_status || '',
+    lastCommandReason: state.last_command_reason || telemetry.last_command_reason || lastState.last_command_reason || '',
   };
 };
 
@@ -195,6 +202,7 @@ export const buildHydroponicsCommand = (command, payload = {}, device = {}) => (
   payload,
   source: 'smartcontrol-web',
   created_at: new Date().toISOString(),
+  requiresStateConfirmation: command === 'set_auto',
 });
 
 export const applyHydroponicsCommandState = (device = {}, commandPayload = {}) => {

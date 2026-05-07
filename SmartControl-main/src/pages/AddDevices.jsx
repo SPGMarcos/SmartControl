@@ -271,27 +271,27 @@ const AddDevice = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-8"
+            className="space-y-6"
           >
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">Adicionar Dispositivo</h1>
-              <p className="text-gray-400">
+              <h1 className="theme-title text-3xl font-bold mb-2">Adicionar Dispositivo</h1>
+              <p className="theme-muted">
                 Apenas os dados essenciais são necessários para cadastrar o dispositivo. O restante é gerado automaticamente pelo backend e pela firmware.
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="gradient-card mobile-card space-y-6 rounded-xl border border-purple-500/30 p-4 sm:p-8">
-              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 sm:p-6">
+            <form onSubmit={handleSubmit} className="theme-card mobile-card space-y-6 rounded-xl p-4 sm:p-8">
+              <div className="theme-panel rounded-2xl p-4 sm:p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <h3 className="text-lg font-semibold text-white">Descoberta automática de dispositivos</h3>
-                    <p className="text-sm text-gray-400 mt-1">Se seu ESP está conectado ao MQTT, clique para descobri-lo automaticamente.</p>
+                    <h3 className="theme-title text-lg font-semibold">Descoberta automática de dispositivos</h3>
+                    <p className="theme-muted text-sm mt-1">Se seu ESP está conectado ao MQTT, clique para descobri-lo automaticamente.</p>
                   </div>
                   <Button
                     type="button"
                     onClick={handleDiscoverDevices}
                     disabled={isDiscovering}
-                    className="w-full shrink-0 bg-blue-600 hover:bg-blue-700 sm:w-auto"
+                    className="w-full shrink-0 sm:w-auto"
                   >
                     <Search className="w-4 h-4 mr-2" />
                     {isDiscovering ? 'Buscando...' : 'Descobrir agora'}
@@ -300,7 +300,7 @@ const AddDevice = () => {
 
                 {showDiscoveredDevices && discoveredDevicesList.length > 0 && (
                   <div className="mt-4 space-y-2">
-                    <p className="text-sm text-gray-400">Dispositivos disponíveis:</p>
+                    <p className="theme-muted text-sm">Dispositivos disponíveis:</p>
                     {discoveredDevicesList.map((device) => (
                       <motion.button
                         key={device.device_id}
@@ -308,14 +308,14 @@ const AddDevice = () => {
                         onClick={() => handleSelectDiscoveredDevice(device)}
                         className={`w-full rounded-lg border p-3 text-left transition-all ${
                           selectedDiscoveredDevice === device.device_id
-                            ? 'border-blue-400 bg-blue-500/20'
-                            : 'border-gray-600 bg-black/30 hover:border-blue-500/50'
+                            ? 'border-[var(--input-focus-border)] bg-[var(--badge-bg)]'
+                            : 'border-[var(--panel-border)] bg-[var(--panel-bg)] hover:border-[var(--input-focus-border)]'
                         }`}
                       >
                         <div className="flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
                           <div className="min-w-0">
-                            <p className="text-white font-medium">{device.device_id}</p>
-                            <p className="text-xs text-gray-400">{device.ip} • {device.mac_address}</p>
+                            <p className="theme-title font-medium">{device.device_id}</p>
+                            <p className="theme-muted text-xs">{device.ip} • {device.mac_address}</p>
                           </div>
                           {selectedDiscoveredDevice === device.device_id && (
                             <Check className="w-5 h-5 text-blue-400" />
@@ -329,26 +329,26 @@ const AddDevice = () => {
 
               <div className="grid gap-6 md:grid-cols-2">
                 <div>
-                  <Label htmlFor="name" className="text-white">Nome do Dispositivo</Label>
+                  <Label htmlFor="name">Nome do Dispositivo</Label>
                   <Input
                     id="name"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
                     required
-                    className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                    className="mt-2"
                     placeholder="Ex: Bomba Poço Principal"
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="projectName" className="text-white">Projeto / Linha de automação</Label>
+                  <Label htmlFor="projectName">Projeto / Linha de automação</Label>
                   <select
                     id="projectName"
                     name="projectName"
                     value={formData.projectName}
                     onChange={handleChange}
-                    className="mt-2 w-full bg-black/50 border border-purple-500/30 text-white rounded-md px-3 py-2"
+                    className="theme-field mt-2 w-full rounded-md border px-3 py-2"
                   >
                     {projectTemplates.map((project) => (
                       <option key={project.name} value={project.name}>
@@ -361,13 +361,13 @@ const AddDevice = () => {
 
               <div className="grid gap-6 md:grid-cols-2">
                 <div>
-                  <Label htmlFor="type" className="text-white">Tipo de Dispositivo</Label>
+                  <Label htmlFor="type">Tipo de Dispositivo</Label>
                   <select
                     id="type"
                     name="type"
                     value={formData.type}
                     onChange={handleChange}
-                    className="mt-2 w-full bg-black/50 border border-purple-500/30 text-white rounded-md px-3 py-2"
+                    className="theme-field mt-2 w-full rounded-md border px-3 py-2"
                   >
                     {deviceKindTemplates.map((type) => (
                       <option key={type.value} value={type.value}>
@@ -381,7 +381,7 @@ const AddDevice = () => {
                   <button
                     type="button"
                     onClick={() => setShowAdvanced((current) => !current)}
-                    className="text-left text-sm font-medium text-purple-300 hover:text-purple-100 transition"
+                    className="theme-link text-left text-sm font-medium transition"
                   >
                     {showAdvanced ? 'Ocultar opções avançadas' : 'Mostrar opções avançadas'}
                   </button>
@@ -389,20 +389,20 @@ const AddDevice = () => {
               </div>
 
               {showAdvanced && (
-                  <div className="space-y-6 rounded-2xl border border-purple-500/20 bg-black/30 p-4 sm:p-6">
-                  <p className="text-sm text-gray-400">
+                  <div className="theme-panel space-y-6 rounded-2xl p-4 sm:p-6">
+                  <p className="theme-muted text-sm">
                     Estas informações são opcionais. Se você estiver usando firmware e backend SmartControl recentes, elas serão preenchidas automaticamente.
                   </p>
 
                   <div className="grid gap-6 md:grid-cols-2">
                     <div>
-                      <Label htmlFor="deviceModel" className="text-white">Hardware físico</Label>
+                      <Label htmlFor="deviceModel">Hardware físico</Label>
                       <select
                         id="deviceModel"
                         name="deviceModel"
                         value={formData.deviceModel}
                         onChange={handleChange}
-                        className="mt-2 w-full bg-black/50 border border-purple-500/30 text-white rounded-md px-3 py-2"
+                        className="theme-field mt-2 w-full rounded-md border px-3 py-2"
                       >
                         {deviceModelOptions.map((model) => (
                           <option key={model.value} value={model.value}>
@@ -413,13 +413,13 @@ const AddDevice = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="protocol" className="text-white">Protocolo principal</Label>
+                      <Label htmlFor="protocol">Protocolo principal</Label>
                       <select
                         id="protocol"
                         name="protocol"
                         value={formData.protocol}
                         onChange={handleChange}
-                        className="mt-2 w-full bg-black/50 border border-purple-500/30 text-white rounded-md px-3 py-2"
+                        className="theme-field mt-2 w-full rounded-md border px-3 py-2"
                       >
                         {protocolOptions.map((protocol) => (
                           <option key={protocol.value} value={protocol.value}>
@@ -432,24 +432,24 @@ const AddDevice = () => {
 
                   <div className="grid gap-6 md:grid-cols-2">
                     <div>
-                      <Label htmlFor="deviceId" className="text-white">ID do Dispositivo</Label>
+                      <Label htmlFor="deviceId">ID do Dispositivo</Label>
                       <Input
                         id="deviceId"
                         name="deviceId"
                         value={formData.deviceId}
                         onChange={handleChange}
-                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        className="mt-2"
                         placeholder="Se vazio, será gerado automaticamente"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="macAddress" className="text-white">MAC Address</Label>
+                      <Label htmlFor="macAddress">MAC Address</Label>
                       <Input
                         id="macAddress"
                         name="macAddress"
                         value={formData.macAddress}
                         onChange={handleChange}
-                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        className="mt-2"
                         placeholder="Opcional"
                       />
                     </div>
@@ -457,24 +457,24 @@ const AddDevice = () => {
 
                   <div className="grid gap-6 md:grid-cols-2">
                     <div>
-                      <Label htmlFor="firmwareVersion" className="text-white">Firmware</Label>
+                      <Label htmlFor="firmwareVersion">Firmware</Label>
                       <Input
                         id="firmwareVersion"
                         name="firmwareVersion"
                         value={formData.firmwareVersion}
                         onChange={handleChange}
-                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        className="mt-2"
                         placeholder="Ex: v1.0.0"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="hardwareVersion" className="text-white">Versão do Hardware</Label>
+                      <Label htmlFor="hardwareVersion">Versão do Hardware</Label>
                       <Input
                         id="hardwareVersion"
                         name="hardwareVersion"
                         value={formData.hardwareVersion}
                         onChange={handleChange}
-                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        className="mt-2"
                         placeholder="Opcional"
                       />
                     </div>
@@ -482,24 +482,24 @@ const AddDevice = () => {
 
                   <div className="grid gap-6 md:grid-cols-2">
                     <div>
-                      <Label htmlFor="mqttBroker" className="text-white">Broker MQTT</Label>
+                      <Label htmlFor="mqttBroker">Broker MQTT</Label>
                       <Input
                         id="mqttBroker"
                         name="mqttBroker"
                         value={formData.mqttBroker}
                         onChange={handleChange}
-                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        className="mt-2"
                         placeholder="Opcional"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="mqttTopic" className="text-white">Tópico MQTT</Label>
+                      <Label htmlFor="mqttTopic">Tópico MQTT</Label>
                       <Input
                         id="mqttTopic"
                         name="mqttTopic"
                         value={formData.mqttTopic}
                         onChange={handleChange}
-                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        className="mt-2"
                         placeholder="Opcional"
                       />
                     </div>
@@ -507,46 +507,46 @@ const AddDevice = () => {
 
                   <div className="grid gap-6 md:grid-cols-2">
                     <div>
-                      <Label htmlFor="localIp" className="text-white">IP local</Label>
+                      <Label htmlFor="localIp">IP local</Label>
                       <Input
                         id="localIp"
                         name="localIp"
                         value={formData.localIp}
                         onChange={handleChange}
-                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        className="mt-2"
                         placeholder="Opcional"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="mdnsHostname" className="text-white">mDNS local</Label>
+                      <Label htmlFor="mdnsHostname">mDNS local</Label>
                       <Input
                         id="mdnsHostname"
                         name="mdnsHostname"
                         value={formData.mdnsHostname}
                         onChange={handleChange}
-                        className="mt-2 bg-black/50 border-purple-500/30 text-white"
+                        className="mt-2"
                         placeholder="Opcional"
                       />
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-purple-500/20 bg-black/30 p-4">
-                    <Label htmlFor="deviceToken" className="text-white">Token do Dispositivo</Label>
+                  <div className="theme-panel rounded-xl p-4">
+                    <Label htmlFor="deviceToken">Token do Dispositivo</Label>
                     <Input
                       id="deviceToken"
                       name="deviceToken"
                       value={formData.deviceToken}
                       readOnly
-                      className="mt-2 bg-black/40 border-purple-500/30 text-white"
+                      className="mt-2"
                     />
                   </div>
                 </div>
               )}
 
-              <div className="rounded-xl border border-purple-500/20 bg-black/30 p-4">
+              <div className="theme-panel rounded-xl p-4">
                 <div className="flex items-start gap-3">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 text-purple-300" />
-                  <p className="text-sm leading-6 text-gray-400">
+                  <ShieldCheck className="theme-icon mt-0.5 h-5 w-5" />
+                  <p className="theme-muted text-sm leading-6">
                     Apenas as informações essenciais são necessárias. O restante é preenchido automaticamente pelo backend e pela firmware SmartControl.
                   </p>
                 </div>
@@ -554,7 +554,7 @@ const AddDevice = () => {
 
               <Button
                 type="submit"
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                className="w-full"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Adicionar Dispositivo

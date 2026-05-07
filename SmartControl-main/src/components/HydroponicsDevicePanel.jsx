@@ -25,6 +25,10 @@ import {
   normalizeHydroponicsState,
 } from '@/lib/hydroponicsHeltec';
 import { isDeviceOnline } from '@/lib/deviceProjects';
+import { toast } from '@/components/ui/use-toast';
+
+const AUTO_CONFIRM_TIMEOUT_MS = 18000;
+const AUTO_RETRY_DELAY_MS = 1500;
 
 const StatusPill = ({ online }) => (
   <span
@@ -56,11 +60,35 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
     tOff: state.tOff,
   });
   const [busyCommand, setBusyCommand] = useState('');
-  const [pendingAutoMode, setPendingAutoMode] = useState(false);
+  const [autoSync, setAutoSync] = useState({
+    status: 'idle',
+    target: null,
+    requestId: '',
+    startedAt: 0,
+    attempt: 0,
+    error: '',
+  });
   const [nowTick, setNowTick] = useState(Date.now());
   const busyCommandRef = useRef('');
+  const autoSyncRef = useRef(autoSync);
+  const autoTimeoutRef = useRef(null);
+  const autoRetryRef = useRef(null);
+  const lastAutoClickRef = useRef(0);
   const online = isDeviceOnline(device);
-  const effectiveAutomatic = online && state.t24;
+  const autoLocked = autoSync.status === 'pending' || autoSync.status === 'syncing';
+  const displayedAutomatic = autoLocked ? Boolean(autoSync.target) : state.t24;
+  const effectiveAutomatic = online && displayedAutomatic;
+
+  useEffect(() => {
+    autoSyncRef.current = autoSync;
+  }, [autoSync]);
+
+  const clearAutoTimers = () => {
+    if (autoTimeoutRef.current) window.clearTimeout(autoTimeoutRef.current);
+    if (autoRetryRef.current) window.clearTimeout(autoRetryRef.current);
+    autoTimeoutRef.current = null;
+    autoRetryRef.current = null;
+  };
 
   useEffect(() => {
     setTimerValues({
@@ -69,9 +97,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
     });
   }, [state.tOn, state.tOff]);
 
-  useEffect(() => {
-    setPendingAutoMode(false);
-  }, [state.t24]);
+  useEffect(() => () => clearAutoTimers(), []);
 
   useEffect(() => {
     setNowTick(Date.now());
@@ -84,6 +110,58 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
 
     return () => window.clearInterval(timer);
   }, [effectiveAutomatic, state.rem, state.lastSeen]);
+
+  useEffect(() => {
+    if (!autoLocked) return;
+
+    const ack = state.lastAck || {};
+    const ackMatches = Boolean(
+      autoSync.requestId &&
+      ack.request_id === autoSync.requestId &&
+      (ack.command === 'set_auto' || ack.command === 'set_config')
+    );
+    const ackRejected = ackMatches && ack.accepted === false;
+    const stateTime = state.lastSeen ? new Date(state.lastSeen).getTime() : 0;
+    const stateIsFresh = Number.isFinite(stateTime) && stateTime >= autoSync.startedAt - 2000;
+    const targetConfirmed = state.t24 === autoSync.target && stateIsFresh;
+
+    if (ackRejected) {
+      clearAutoTimers();
+      console.warn('[SmartControl:auto-mode] Firmware rejeitou modo automatico', {
+        deviceId: device.id,
+        requestId: autoSync.requestId,
+        ack,
+      });
+      setAutoSync((current) => ({
+        ...current,
+        status: 'failed',
+        error: ack.reason || 'firmware_rejected',
+      }));
+      toast({
+        variant: 'destructive',
+        title: 'Modo automatico nao alterado',
+        description: 'A firmware rejeitou o comando. O painel voltou para o estado real.',
+      });
+      window.setTimeout(() => {
+        setAutoSync({ status: 'idle', target: null, requestId: '', startedAt: 0, attempt: 0, error: '' });
+      }, 1200);
+      return;
+    }
+
+    if (targetConfirmed) {
+      clearAutoTimers();
+      console.debug('[SmartControl:auto-mode] Estado automatico confirmado', {
+        deviceId: device.id,
+        target: autoSync.target,
+        requestId: autoSync.requestId,
+        ackMatches,
+      });
+      setAutoSync((current) => ({ ...current, status: 'confirmed', error: '' }));
+      window.setTimeout(() => {
+        setAutoSync({ status: 'idle', target: null, requestId: '', startedAt: 0, attempt: 0, error: '' });
+      }, 700);
+    }
+  }, [autoLocked, autoSync, device.id, state.lastAck, state.lastSeen, state.t24]);
 
   const stateAgeSeconds = state.lastSeen
     ? Math.max(0, Math.floor((nowTick - new Date(state.lastSeen).getTime()) / 1000))
@@ -119,8 +197,8 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
   const displayOxygenatorState = effectiveAutomatic ? automaticTimer.oxygenatorActive : state.v2;
   const timerLabel = effectiveAutomatic
     ? (displayPumpState ? 'Bomba ativa' : 'Bomba em repouso')
-    : state.t24
-      ? 'Aguardando conexão'
+    : displayedAutomatic
+      ? 'Sincronizando modo automatico'
       : 'Modo manual';
   const timerTone = effectiveAutomatic
     ? (displayPumpState ? 'text-green-300' : 'text-amber-300')
@@ -129,30 +207,145 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
   const localSettingsUrl = getHydroponicsLocalUrl(device, '/settings');
   const isManualControlsLocked = () =>
     effectiveAutomatic ||
+    autoLocked ||
     busyCommand === 'set_auto' ||
     busyCommand === 'set_relay' ||
     busyCommandRef.current === 'set_auto' ||
     busyCommandRef.current === 'set_relay';
   const manualControlsLocked = isManualControlsLocked();
 
-  const sendCommand = async (command, payload = {}) => {
+  const resetAutoSyncSoon = (delay = 1200) => {
+    window.setTimeout(() => {
+      setAutoSync({ status: 'idle', target: null, requestId: '', startedAt: 0, attempt: 0, error: '' });
+    }, delay);
+  };
+
+  const scheduleAutoConfirmationTimeout = ({ target, requestId, attempt }) => {
+    if (autoTimeoutRef.current) window.clearTimeout(autoTimeoutRef.current);
+
+    autoTimeoutRef.current = window.setTimeout(() => {
+      const current = autoSyncRef.current;
+      const stillWaiting =
+        (current.status === 'pending' || current.status === 'syncing') &&
+        current.target === target &&
+        (!requestId || current.requestId === requestId);
+
+      if (!stillWaiting) return;
+
+      if (attempt < 1) {
+        console.warn('[SmartControl:auto-mode] Confirmacao atrasou, reenviando comando', {
+          deviceId: device.id,
+          target,
+          requestId,
+          attempt,
+        });
+
+        autoRetryRef.current = window.setTimeout(() => {
+          sendCommand('set_auto', { enabled: target }, { confirmState: true, target, attempt: attempt + 1 });
+        }, AUTO_RETRY_DELAY_MS);
+        return;
+      }
+
+      console.warn('[SmartControl:auto-mode] Timeout aguardando firmware', {
+        deviceId: device.id,
+        target,
+        requestId,
+      });
+      setAutoSync((currentState) => ({
+        ...currentState,
+        status: 'failed',
+        error: 'timeout',
+      }));
+      toast({
+        variant: 'destructive',
+        title: 'Sem confirmacao do dispositivo',
+        description: 'O comando foi enviado, mas a firmware nao confirmou a mudanca a tempo.',
+      });
+      resetAutoSyncSoon();
+    }, AUTO_CONFIRM_TIMEOUT_MS);
+  };
+
+  const sendCommand = async (command, payload = {}, options = {}) => {
     if (!onCommand) return;
     if (command === 'set_relay' && isManualControlsLocked()) return;
+    if (command === 'set_auto' && autoLocked && !options.confirmState) return;
 
     busyCommandRef.current = command;
     setBusyCommand(command);
-    if (command === 'set_auto') {
-      setPendingAutoMode(true);
+    const startedAt = Date.now();
+
+    if (options.confirmState) {
+      setAutoSync({
+        status: 'pending',
+        target: options.target,
+        requestId: '',
+        startedAt,
+        attempt: options.attempt || 0,
+        error: '',
+      });
     }
+
     try {
-      await onCommand(buildHydroponicsCommand(command, payload, device));
+      const result = await onCommand(buildHydroponicsCommand(command, payload, device));
+
+      if (result?.ok === false) {
+        throw new Error(result.error || 'command_failed');
+      }
+
+      if (options.confirmState) {
+        const requestId = result?.payload?.request_id || result?.request_id || '';
+        console.debug('[SmartControl:auto-mode] Comando enviado, aguardando estado real', {
+          deviceId: device.id,
+          target: options.target,
+          requestId,
+          attempt: options.attempt || 0,
+        });
+        setAutoSync((current) => ({
+          ...current,
+          status: 'syncing',
+          requestId,
+        }));
+        scheduleAutoConfirmationTimeout({
+          target: options.target,
+          requestId,
+          attempt: options.attempt || 0,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      if (options.confirmState) {
+        clearAutoTimers();
+        console.warn('[SmartControl:auto-mode] Falha ao enviar comando', {
+          deviceId: device.id,
+          target: options.target,
+          error,
+        });
+        setAutoSync((current) => ({
+          ...current,
+          status: 'failed',
+          error: error.message || 'send_failed',
+        }));
+        toast({
+          variant: 'destructive',
+          title: 'Nao foi possivel alterar o automatico',
+          description: 'O painel manteve o estado real do dispositivo.',
+        });
+        resetAutoSyncSoon();
+      }
+      return { ok: false, error: error.message || 'command_failed' };
     } finally {
       busyCommandRef.current = '';
-      setBusyCommand('');
-      if (command === 'set_auto') {
-        // Pending will be cleared when device state updates
-      }
+      if (!options.confirmState) setBusyCommand('');
+      if (options.confirmState) setBusyCommand('');
     }
+  };
+
+  const handleAutomaticChange = (checked) => {
+    const now = Date.now();
+    if (autoLocked || now - lastAutoClickRef.current < 650) return;
+    lastAutoClickRef.current = now;
+    sendCommand('set_auto', { enabled: checked }, { confirmState: true, target: checked, attempt: 0 });
   };
 
   const sendConfig = async (payload = {}) => {
@@ -233,18 +426,24 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
             </div>
             <div className="flex items-center justify-between gap-3 sm:justify-start">
               <span className="text-sm text-gray-400">
-                {pendingAutoMode ? (state.t24 ? 'Desativando...' : 'Ativando...') : 'Modo automático'}
+                {autoLocked
+                  ? (autoSync.target ? 'Ativando...' : 'Desativando...')
+                  : autoSync.status === 'confirmed'
+                    ? 'Confirmado'
+                    : autoSync.status === 'failed'
+                      ? 'Falhou'
+                      : 'Modo automatico'}
               </span>
               <Switch
-                checked={state.t24}
-                disabled={busyCommand === 'set_auto' || pendingAutoMode}
-                onCheckedChange={(checked) => sendCommand('set_auto', { enabled: checked })}
+                checked={displayedAutomatic}
+                disabled={busyCommand === 'set_auto' || autoLocked}
+                onCheckedChange={handleAutomaticChange}
                 className="scale-110"
               />
             </div>
           </div>
 
-          {state.t24 && (
+          {displayedAutomatic && (
             <>
               <div className="mb-6 grid grid-cols-2 gap-3">
                 <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -283,7 +482,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                   </p>
                 ) : (
                   <p className="mt-3 text-sm leading-6 text-gray-300">
-                    O modo automatico esta salvo no dispositivo. O contador volta a aparecer quando o heartbeat confirmar que ele esta online.
+                    O painel enviou o comando e esta aguardando heartbeat/status da firmware para confirmar o estado real.
                   </p>
                 )}
               </div>
@@ -296,7 +495,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                 <Droplets className="h-6 w-6 text-blue-300" />
                 <div>
                   <p className="font-semibold text-white">Bomba d'Água</p>
-                  <p className="text-sm text-gray-500">{state.t24 ? 'Controlada pelo temporizador' : 'Controle manual liberado'}</p>
+                  <p className="text-sm text-gray-500">{displayedAutomatic ? 'Controlada pelo temporizador' : 'Controle manual liberado'}</p>
                 </div>
               </div>
               <Switch
@@ -312,7 +511,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
                 <Activity className="h-6 w-6 text-blue-300" />
                 <div>
                   <p className="font-semibold text-white">Oxigenador</p>
-                  <p className="text-sm text-gray-500">{state.t24 ? 'Mantido ligado no modo automático' : 'Controle manual liberado'}</p>
+                  <p className="text-sm text-gray-500">{displayedAutomatic ? 'Mantido ligado no modo automatico' : 'Controle manual liberado'}</p>
                 </div>
               </div>
               <Switch
@@ -325,7 +524,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
           </div>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:gap-2">
-            {state.t24 && (
+            {displayedAutomatic && (
               <Button
                 type="button"
                 onClick={handleTimerSave}
@@ -345,7 +544,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
               }}
               variant="outline"
               className={`h-12 flex-1 border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white text-base font-semibold whitespace-nowrap ${
-                state.t24 ? 'sm:flex-1' : 'w-full'
+                displayedAutomatic ? 'sm:flex-1' : 'w-full'
               }`}
             >
               <Settings className="mr-2 h-5 w-5 flex-none" />
@@ -357,7 +556,7 @@ const HydroponicsDevicePanel = ({ device, topics, onCommand, onConfig, compact =
 
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-            <MetricBox icon={Power} label="Modo" value={state.t24 ? (online ? 'Automático' : 'Auto sem conexão') : 'Manual'} />
+            <MetricBox icon={Power} label="Modo" value={autoLocked ? 'Sincronizando' : displayedAutomatic ? (online ? 'Automatico' : 'Auto sem conexao') : 'Manual'} />
             <MetricBox icon={History} label="Última conexão" value={state.lastSeen ? new Date(state.lastSeen).toLocaleString('pt-BR') : 'Aguardando'} />
             {!compact && <MetricBox icon={Cpu} label="Firmware" value={state.firmwareVersion} />}
             {!compact && <MetricBox icon={Router} label="Rede local" value={state.ip || state.mdns || 'Não informado'} />}
