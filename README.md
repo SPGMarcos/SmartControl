@@ -87,7 +87,7 @@ A plataforma SmartControl permite:
 
 # 🧠 Como funciona
 
-O sistema utiliza ESP32 LoRa conectados ao MQTT Cloud.
+O sistema utiliza ESP32 conectados ao MQTT Cloud.
 
 O dashboard web se comunica com o backend Node.js, que gerencia os dispositivos, estados e integração com o banco Supabase.
 
@@ -108,7 +108,7 @@ Backend Node.js
    ↓
 MQTT Cloud
    ↓
-ESP32 LoRa
+ESP32 
    ↓
 Relés / Sensores / Bombas / Válvulas
 ```
@@ -145,14 +145,13 @@ Relés / Sensores / Bombas / Válvulas
 
 - ESP32
 - ESP32 LoRa Heltec
-- ESP8266
 
 
 
 # 🔌 Hardware utilizado
 
+- ESP32 
 - ESP32 LoRa Heltec
-- ESP8266
 - Módulos relé
 - Válvulas solenóides
 - Bombas d’água
@@ -169,7 +168,7 @@ SmartControl-main/
 
 ├── backend/        → Backend Node.js
 ├── frontend/       → Dashboard React/Vite
-├── firmware/       → Firmwares ESP32 e ESP8266
+├── firmware/       → Firmwares ESP32 e ESP32 LoRa Heltec
 ├── supabase/       → Schema SQL
 └── docs/           → Arquitetura e documentação
 ```
