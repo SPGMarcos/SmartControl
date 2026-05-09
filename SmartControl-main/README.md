@@ -2,7 +2,7 @@
 
 Plataforma web para automação residencial e agrícola, desenvolvida com React/Vite, Node.js, Supabase, MQTT Cloud e firmware ESP32 LoRa para sistemas inteligentes de irrigação, hidroponia e automação remota.
 
----
+
 
 # 📌 Visão Geral
 
@@ -24,7 +24,7 @@ Esta versão já está preparada para testes reais utilizando:
 - Backend Node.js
 - Dashboard React hospedada no GitHub Pages
 
----
+
 
 # 🎯 Objetivo
 
@@ -37,7 +37,7 @@ Desenvolver uma plataforma de automação que permita:
 - Comunicação de longa distância via LoRa
 - Dashboard moderna e responsiva
 
----
+
 
 # ⚙️ Arquitetura
 
@@ -55,7 +55,7 @@ Supabase
 Dashboard SmartControl
 ```
 
----
+
 
 # ☁️ Hospedagem recomendada
 
@@ -76,7 +76,7 @@ Dashboard SmartControl
 
 - Supabase Free
 
----
+
 
 # 💻 Tecnologias utilizadas
 
@@ -110,7 +110,7 @@ Dashboard SmartControl
 - ESP8266
 - Arduino Framework
 
----
+
 
 # 🚀 Desenvolvimento local
 
@@ -122,7 +122,7 @@ npm install
 npm run dev
 ```
 
----
+
 
 ## Backend
 
@@ -136,7 +136,7 @@ cp .env.example .env
 npm start
 ```
 
----
+
 
 # 🏗️ Build para GitHub Pages
 
@@ -153,7 +153,7 @@ dist/404.html
 
 Isso evita erros 404 ao atualizar páginas protegidas no GitHub Pages.
 
----
+
 
 # 🔐 Variáveis de ambiente
 
@@ -169,7 +169,7 @@ VITE_BACKEND_URL=https://seu-backend.onrender.com
 VITE_BASE_PATH=/SmartControl/
 ```
 
----
+
 
 ## Backend (backend/.env)
 
@@ -189,7 +189,7 @@ CORS_ORIGIN=https://seu-usuario.github.io
 REQUIRE_AUTH=true
 ```
 
----
+
 
 # 🌱 Firmware Hidroponia
 
@@ -199,7 +199,7 @@ REQUIRE_AUTH=true
 firmware/hidroponia/hidroponia_heltec.ino
 ```
 
----
+
 
 # 🔧 Funcionalidades do firmware
 
@@ -229,7 +229,7 @@ firmware/hidroponia/hidroponia_heltec.ino
 - Configuração MQTT local
 - Reset de fábrica
 
----
+
 
 # 📡 Camada remota MQTT
 
@@ -240,7 +240,7 @@ A camada MQTT adiciona:
 ✅ Sincronização de estados  
 ✅ Monitoramento online/offline  
 
----
+
 
 ## Recursos MQTT implementados
 
@@ -254,7 +254,7 @@ A camada MQTT adiciona:
 - Availability online/offline
 - ACK de comandos
 
----
+
 
 # 🛰️ Estrutura de tópicos MQTT
 
@@ -264,7 +264,7 @@ A camada MQTT adiciona:
 smartcontrol/{cliente}/{projeto}/hidroponia01
 ```
 
----
+
 
 # 🗄️ Schema Supabase
 
@@ -284,7 +284,7 @@ O schema cria automaticamente:
 - Triggers
 - Políticas RLS
 
----
+
 
 # 🚀 Deploy
 
@@ -292,7 +292,7 @@ O schema cria automaticamente:
 
 Execute o schema SQL no Supabase.
 
----
+
 
 ## 2. MQTT Broker
 
@@ -302,7 +302,7 @@ Configure:
 - Senhas
 - ACLs por dispositivo
 
----
+
 
 ## 3. Backend
 
@@ -314,7 +314,7 @@ backend/
 
 No Render.
 
----
+
 
 ## 4. GitHub Pages
 
@@ -330,7 +330,7 @@ VITE_BACKEND_URL
 
 Ative o GitHub Pages utilizando GitHub Actions.
 
----
+
 
 ## 5. Firmware ESP32
 
@@ -342,7 +342,7 @@ Depois configure o MQTT em:
 http://smarthidroponia.local/settings
 ```
 
----
+
 
 # 🛡️ Confiabilidade
 
@@ -353,7 +353,7 @@ http://smarthidroponia.local/settings
 ✅ Firmware estável  
 ✅ Controle remoto em tempo real  
 
----
+
 
 # 📈 Próximos passos
 
@@ -366,7 +366,7 @@ http://smarthidroponia.local/settings
 - Histórico avançado de dados
 - Aplicativo mobile
 
----
+
 
 # 🌍 Aplicações
 
@@ -378,7 +378,7 @@ http://smarthidroponia.local/settings
 - Controle de bombas
 - Monitoramento remoto agrícola
 
----
+
 
 # 🔗 Projeto
 
@@ -386,7 +386,7 @@ http://smarthidroponia.local/settings
 
 https://spgmarcos.github.io/SmartControl
 
----
+
 
 # 👨‍💻 Autor
 
