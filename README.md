@@ -1,6 +1,6 @@
 # SmartControl 🌱⚡
 
-Sistema completo de automação IoT para hidroponia, irrigação e controle residencial, desenvolvido com ESP32 LoRa, MQTT, Supabase, Node.js e dashboard web.
+Sistema completo de automação IoT para hidroponia, irrigação e controle residencial, desenvolvido com ESP32, MQTT, Supabase, Node.js e dashboard web.
 
 
 
