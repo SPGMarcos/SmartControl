@@ -2,7 +2,7 @@
 
 Sistema completo de automação IoT para hidroponia, irrigação e controle residencial, desenvolvido com ESP32 LoRa, MQTT, Supabase, Node.js e dashboard web.
 
----
+
 
 ## 📌 Visão Geral
 
@@ -31,7 +31,7 @@ Hoje a plataforma já permite controlar:
 - Sistemas hidropônicos
 - Sensores diversos
 
----
+
 
 # 🎯 Objetivo
 
@@ -44,7 +44,7 @@ Desenvolver uma plataforma IoT que seja:
 - Compatível com automação residencial e agrícola
 - Fácil de configurar e instalar
 
----
+
 
 # 🌱 O que o sistema faz
 
@@ -83,7 +83,7 @@ A plataforma SmartControl permite:
 - Não depende totalmente de internet
 - Maior confiabilidade operacional
 
----
+
 
 # 🧠 Como funciona
 
@@ -93,7 +93,7 @@ O dashboard web se comunica com o backend Node.js, que gerencia os dispositivos,
 
 Toda a lógica pode funcionar localmente ou integrada ao Home Assistant.
 
----
+
 
 # ⚙️ Arquitetura
 
@@ -113,7 +113,7 @@ ESP32 LoRa
 Relés / Sensores / Bombas / Válvulas
 ```
 
----
+
 
 # 💻 Tecnologias utilizadas
 
@@ -147,7 +147,7 @@ Relés / Sensores / Bombas / Válvulas
 - ESP32 LoRa Heltec
 - ESP8266
 
----
+
 
 # 🔌 Hardware utilizado
 
@@ -160,7 +160,7 @@ Relés / Sensores / Bombas / Válvulas
 - Fontes de alimentação
 - Display OLED integrado
 
----
+
 
 # 📂 Estrutura do projeto
 
@@ -174,7 +174,7 @@ SmartControl-main/
 └── docs/           → Arquitetura e documentação
 ```
 
----
+
 
 # 🚀 Deploy
 
@@ -197,7 +197,7 @@ Schema disponível em:
 supabase/smartcontrol_iot_schema.sql
 ```
 
----
+
 
 # 🛡️ Confiabilidade
 
@@ -208,7 +208,7 @@ supabase/smartcontrol_iot_schema.sql
 ✅ Reconexão automática dos dispositivos  
 ✅ Firmware otimizada para estabilidade  
 
----
+
 
 # ⚠️ Limitações atuais
 
@@ -216,7 +216,7 @@ supabase/smartcontrol_iot_schema.sql
 - Parte das automações avançadas ainda depende do Home Assistant
 - Interface continua recebendo melhorias constantes
 
----
+
 
 # 📈 Próximos passos
 
@@ -228,7 +228,7 @@ supabase/smartcontrol_iot_schema.sql
 - Firmware modular unificada
 - IA para automações inteligentes
 
----
+
 
 # 🌍 Aplicações
 
@@ -240,7 +240,7 @@ supabase/smartcontrol_iot_schema.sql
 - Controle de bombas
 - Automação rural
 
----
+
 
 # 🔗 Projeto
 
@@ -248,7 +248,7 @@ supabase/smartcontrol_iot_schema.sql
 
 https://spgmarcos.github.io/SmartControl
 
----
+
 
 # 👨‍💻 Autor
 
