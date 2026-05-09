@@ -1,131 +1,401 @@
-# SmartControl
+# SmartControl 🌱⚡
 
-Plataforma web para automacao residencial e agricola com frontend React/Vite, backend Node.js, Supabase e MQTT Cloud. Esta versao esta preparada para testes reais gratuitos com o firmware Heltec ESP32 LoRa V2 de hidroponia.
+Plataforma web para automação residencial e agrícola, desenvolvida com React/Vite, Node.js, Supabase, MQTT Cloud e firmware ESP32 LoRa para sistemas inteligentes de irrigação, hidroponia e automação remota.
 
-## Arquitetura
+---
+
+# 📌 Visão Geral
+
+O **SmartControl** é uma plataforma IoT desenvolvida para permitir o controle e monitoramento de dispositivos agrícolas e residenciais em tempo real.
+
+A arquitetura foi projetada para ser:
+
+✅ Modular  
+✅ Escalável  
+✅ Independente de cloud proprietária  
+✅ Compatível com MQTT e Home Assistant  
+✅ Funcional mesmo sem internet  
+
+Esta versão já está preparada para testes reais utilizando:
+
+- ESP32 Heltec LoRa V2
+- MQTT Cloud
+- Supabase
+- Backend Node.js
+- Dashboard React hospedada no GitHub Pages
+
+---
+
+# 🎯 Objetivo
+
+Desenvolver uma plataforma de automação que permita:
+
+- Controle remoto de dispositivos
+- Monitoramento em tempo real
+- Integração com sensores
+- Operação local e remota
+- Comunicação de longa distância via LoRa
+- Dashboard moderna e responsiva
+
+---
+
+# ⚙️ Arquitetura
+
+## Fluxo principal
 
 ```text
 ESP32 Heltec LoRa
-  -> MQTT Cloud Broker
-  -> Backend Node.js
-  -> Supabase
-  -> Dashboard SmartControl no GitHub Pages
+        ↓
+MQTT Cloud Broker
+        ↓
+Backend Node.js
+        ↓
+Supabase
+        ↓
+Dashboard SmartControl
 ```
 
-Hospedagem inicial recomendada:
+---
 
-- Frontend: GitHub Pages
-- Backend: Render Free
-- MQTT: EMQX Cloud Serverless com quota gratuita. HiveMQ somente se sua conta ainda mostrar opcao gratuita/trial.
-- Banco/Auth: Supabase Free
+# ☁️ Hospedagem recomendada
 
-O guia completo esta em [`docs/arquitetura.md`](docs/arquitetura.md).
+## Frontend
 
-## Desenvolvimento local
+- GitHub Pages
 
-Frontend:
+## Backend
+
+- Render Free
+
+## MQTT Broker
+
+- EMQX Cloud Serverless
+- HiveMQ (caso a conta ainda possua plano gratuito/trial)
+
+## Banco de dados e autenticação
+
+- Supabase Free
+
+---
+
+# 💻 Tecnologias utilizadas
+
+## Frontend
+
+- React
+- Vite
+- JavaScript
+- HTML5
+- CSS3
+
+## Backend
+
+- Node.js
+- Express
+
+## Banco de dados
+
+- Supabase
+- PostgreSQL
+
+## Comunicação
+
+- MQTT
+- LoRa
+- Wi-Fi
+
+## Firmware
+
+- ESP32 Heltec LoRa V2
+- ESP8266
+- Arduino Framework
+
+---
+
+# 🚀 Desenvolvimento local
+
+## Frontend
 
 ```bash
 npm install
+
 npm run dev
 ```
 
-Backend:
+---
+
+## Backend
 
 ```bash
 cd backend
+
 npm install
+
 cp .env.example .env
+
 npm start
 ```
 
-Build GitHub Pages:
+---
+
+# 🏗️ Build para GitHub Pages
 
 ```bash
 npm run build
 ```
 
-O build gera `dist/index.html` e `dist/404.html` para evitar 404 ao recarregar rotas protegidas no GitHub Pages.
+O build gera automaticamente:
 
-## Variaveis principais
+```text
+dist/index.html
+dist/404.html
+```
 
-Frontend (`.env`):
+Isso evita erros 404 ao atualizar páginas protegidas no GitHub Pages.
+
+---
+
+# 🔐 Variáveis de ambiente
+
+## Frontend (.env)
 
 ```env
 VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+
 VITE_SUPABASE_ANON_KEY=sua-chave-publica-anon
+
 VITE_BACKEND_URL=https://seu-backend.onrender.com
+
 VITE_BASE_PATH=/SmartControl/
 ```
 
-Backend (`backend/.env`):
+---
+
+## Backend (backend/.env)
 
 ```env
 SUPABASE_URL=https://seu-projeto.supabase.co
+
 SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key
+
 MQTT_URL=mqtts://seu-broker:8883
+
 MQTT_USERNAME=smartcontrol-backend
+
 MQTT_PASSWORD=senha-forte
+
 CORS_ORIGIN=https://seu-usuario.github.io
+
 REQUIRE_AUTH=true
 ```
 
-## Firmware hidroponia
+---
 
-Firmware integrado:
+# 🌱 Firmware Hidroponia
 
-- [`firmware/hidroponia/hidroponia_heltec.ino`](firmware/hidroponia/hidroponia_heltec.ino)
+## Firmware integrado
 
-Funcionalidades preservadas:
+```text
+firmware/hidroponia/hidroponia_heltec.ino
+```
 
-- dashboard HTML local
-- bomba no GPIO 2
-- oxigenador no GPIO 17
-- modo automatico/manual
-- temporizador ON/OFF
+---
+
+# 🔧 Funcionalidades do firmware
+
+## Dashboard local
+
+- Interface HTML embarcada
+- Controle local sem internet
+
+## Controle de dispositivos
+
+- Bomba no GPIO 2
+- Oxigenador no GPIO 17
+
+## Modos de operação
+
+- Modo automático
+- Modo manual
+- Temporizador ON/OFF
+
+## Recursos embarcados
+
 - WiFiManager
 - OTA
-- OLED
+- OLED integrado
 - LittleFS
 - mDNS
-- configuracao MQTT local
-- reset de fabrica
+- Configuração MQTT local
+- Reset de fábrica
 
-Camada remota adicionada:
+---
+
+# 📡 Camada remota MQTT
+
+A camada MQTT adiciona:
+
+✅ Comunicação remota  
+✅ Controle em tempo real  
+✅ Sincronização de estados  
+✅ Monitoramento online/offline  
+
+---
+
+## Recursos MQTT implementados
 
 - `mqttClient.setServer()`
 - `mqttClient.setCallback()`
 - `reconnectMQTT()`
 - `publishStatus()`
-- assinatura de `cmd` e `config`
-- heartbeat
-- availability online/offline
+- Assinatura de tópicos de comando
+- Assinatura de tópicos de configuração
+- Heartbeat
+- Availability online/offline
 - ACK de comandos
 
-Topico base:
+---
+
+# 🛰️ Estrutura de tópicos MQTT
+
+## Tópico base
 
 ```text
 smartcontrol/{cliente}/{projeto}/hidroponia01
 ```
 
-## Schema Supabase
+---
 
-Execute:
+# 🗄️ Schema Supabase
 
-```sql
--- SmartControl-main/supabase/smartcontrol_iot_schema.sql
+Execute o schema disponível em:
+
+```text
+SmartControl-main/supabase/smartcontrol_iot_schema.sql
 ```
 
-Ele cria `projects`, `devices`, `sensors`, `logs`, indices, triggers e politicas RLS.
+O schema cria automaticamente:
 
-## Deploy
+- Projects
+- Devices
+- Sensors
+- Logs
+- Índices
+- Triggers
+- Políticas RLS
 
-1. Execute o schema no Supabase.
-2. Configure o broker MQTT e ACLs por dispositivo.
-3. Publique `backend/` no Render.
-4. Configure os secrets do GitHub Pages:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_BACKEND_URL`
-5. Ative GitHub Pages com source `GitHub Actions`.
-6. Grave o firmware no Heltec e configure MQTT em `http://smarthidroponia.local/settings`.
+---
+
+# 🚀 Deploy
+
+## 1. Banco Supabase
+
+Execute o schema SQL no Supabase.
+
+---
+
+## 2. MQTT Broker
+
+Configure:
+
+- Usuários
+- Senhas
+- ACLs por dispositivo
+
+---
+
+## 3. Backend
+
+Publique a pasta:
+
+```text
+backend/
+```
+
+No Render.
+
+---
+
+## 4. GitHub Pages
+
+Configure os secrets:
+
+```env
+VITE_SUPABASE_URL
+
+VITE_SUPABASE_ANON_KEY
+
+VITE_BACKEND_URL
+```
+
+Ative o GitHub Pages utilizando GitHub Actions.
+
+---
+
+## 5. Firmware ESP32
+
+Grave o firmware no ESP32 Heltec LoRa.
+
+Depois configure o MQTT em:
+
+```text
+http://smarthidroponia.local/settings
+```
+
+---
+
+# 🛡️ Confiabilidade
+
+✅ Funcionamento local  
+✅ Operação offline  
+✅ Reconexão automática MQTT  
+✅ Estrutura modular  
+✅ Firmware estável  
+✅ Controle remoto em tempo real  
+
+---
+
+# 📈 Próximos passos
+
+- Dashboard mais avançada
+- Controle completo via LoRa
+- Sistema multiusuário
+- Mais sensores ambientais
+- Integração com IA
+- Notificações inteligentes
+- Histórico avançado de dados
+- Aplicativo mobile
+
+---
+
+# 🌍 Aplicações
+
+- Hidroponia
+- Irrigação automática
+- Estufas inteligentes
+- Automação residencial
+- Controle de iluminação
+- Controle de bombas
+- Monitoramento remoto agrícola
+
+---
+
+# 🔗 Projeto
+
+## GitHub Pages
+
+https://spgmarcos.github.io/SmartControl
+
+---
+
+# 👨‍💻 Autor
+
+## Marcos Gabriel Ferreira Miranda
+
+Desenvolvedor IoT | Automação Residencial e Agrícola
+
+ESP32 • LoRa • MQTT • Home Assistant
+
+Fundador da SmartControl
+
+📍 Belo Horizonte - MG
