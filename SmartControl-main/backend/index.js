@@ -9,6 +9,11 @@ import { buildPresenceUpdate, isHeartbeatStale } from './src/managers/devicePres
 import { DEVICE_CLASSES, buildCanonicalIdentity } from './src/managers/deviceRegistry.js';
 import { integrationManager } from './src/managers/integrationManager.js';
 import { buildOtaDescriptor } from './src/managers/otaManager.js';
+import { createStripeClient } from './src/billing/billingService.js';
+import { registerBillingRoutes, registerStripeWebhookRoute } from './src/billing/billingRoutes.js';
+import { assertCanCreateDevice } from './src/billing/billingService.js';
+import { registerDeviceCreationRoutes } from './src/routes/deviceCreationRoutes.js';
+import { registerDeviceMonitoringRoutes } from './src/routes/deviceMonitoringRoutes.js';
 import {
   getHardwareIdentity as getProtocolHardwareIdentity,
   normalizeCapabilities,
@@ -63,6 +68,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   },
 });
 
+const stripe = createStripeClient(process.env);
+
 const normalizeTopicPart = (value = '') =>
   value
     .toString()
@@ -115,6 +122,31 @@ const defaultStatusTopics = [
 const statusTopics = MQTT_STATUS_TOPICS
   ? MQTT_STATUS_TOPICS.split(',').map((topic) => topic.trim()).filter(Boolean)
   : defaultStatusTopics;
+
+const isLoopbackHost = (host = '') => ['localhost', '127.0.0.1', '::1', '[::1]'].includes(host);
+
+const isAllowedCorsOrigin = (origin, allowed = []) => {
+  if (!origin || allowed.length === 0 || allowed.includes('*') || allowed.includes(origin)) return true;
+
+  try {
+    const originUrl = new URL(origin);
+    return allowed.some((allowedOrigin) => {
+      try {
+        const allowedUrl = new URL(allowedOrigin);
+        return (
+          isLoopbackHost(originUrl.hostname) &&
+          isLoopbackHost(allowedUrl.hostname) &&
+          originUrl.port === allowedUrl.port &&
+          originUrl.protocol === allowedUrl.protocol
+        );
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
+};
 
 // Mapa para armazenar dispositivos descobertos (nao registrados)
 const discoveredDevices = new Map();
@@ -1263,14 +1295,29 @@ app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
     const allowed = (CORS_ORIGIN || '').split(',').map((item) => item.trim()).filter(Boolean);
-    if (!origin || allowed.length === 0 || allowed.includes('*') || allowed.includes(origin)) {
+    if (isAllowedCorsOrigin(origin, allowed)) {
       return callback(null, true);
     }
     return callback(new Error('Origem nao permitida pelo CORS.'));
   },
   credentials: true,
 }));
+registerStripeWebhookRoute(app, { stripe, supabase, env: process.env, logEvent });
 app.use(express.json({ limit: '100kb' }));
+registerBillingRoutes(app, { stripe, supabase, env: process.env, getRequestUser, logEvent });
+registerDeviceCreationRoutes(app, {
+  supabase,
+  stripe,
+  env: process.env,
+  getRequestUser,
+  assertCanCreateDevice,
+  logEvent,
+});
+registerDeviceMonitoringRoutes(app, {
+  supabase,
+  resolveAuthorizedDevice,
+  deviceHeartbeatTimeoutMs,
+});
 
 app.get('/', (req, res) => {
   return res.json({
@@ -1288,6 +1335,7 @@ app.get('/health', (req, res) => {
     mqtt_clean_session: MQTT_CLEAN_SESSION === 'true',
     subscribed_topics: statusTopics,
     auth_required: requireAuth,
+    stripe_configured: Boolean(stripe),
     device_token_required: requireDeviceToken,
     heartbeat_timeout_ms: deviceHeartbeatTimeoutMs,
     command_ack_timeout_ms: commandAckTimeoutMs,

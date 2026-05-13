@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowLeft, ArrowRight, Gauge, Layers, Plus, Power, Wifi, Zap } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, CreditCard, Gauge, Layers, Plus, Power, Wifi, Zap } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import DeviceCard from '@/components/DeviceCard';
 import HydroponicsDevicePanel from '@/components/HydroponicsDevicePanel';
@@ -15,6 +15,7 @@ import { applyHydroponicsCommandState, buildHydroponicsMqttTopics, isHydroponics
 import { backendUrl } from '@/lib/backend';
 import { subscribeBackendEvents } from '@/lib/realtimeEvents';
 import { toast } from '@/components/ui/use-toast';
+import { useSubscription } from '@/hooks/useSubscription';
 
 const StatCard = ({ icon: Icon, label, value, accent = 'text-purple-400', delay = 0 }) => (
   <motion.div
@@ -326,6 +327,7 @@ const Dashboard = () => {
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectView, setProjectView] = useState('projects');
   const optimisticDevicesRef = useRef(new Map());
+  const { currentPlan, limits } = useSubscription();
 
   const mergeOptimisticDevices = (freshDevices = []) =>
     freshDevices.map((device) => {
@@ -596,10 +598,16 @@ const Dashboard = () => {
                   </p>
                 </div>
                 <div className="mobile-button-row flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <Link to="/add-device" className="w-full sm:w-auto">
+                  <Link to="/subscription" className="w-full sm:w-auto">
+                    <Button variant="outline" className="w-full border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white sm:w-auto">
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      {currentPlan.name}
+                    </Button>
+                  </Link>
+                  <Link to={limits.can_add_device ? '/add-device' : '/subscription'} className="w-full sm:w-auto">
                     <Button className="w-full sm:w-auto">
                       <Plus className="w-4 h-4 mr-2" />
-                      Novo dispositivo
+                      {limits.can_add_device ? 'Novo dispositivo' : 'Fazer upgrade'}
                     </Button>
                   </Link>
                 </div>
@@ -608,9 +616,14 @@ const Dashboard = () => {
               <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-6 lg:grid-cols-4">
                 <StatCard icon={Zap} label="Dispositivos Ativos" value={devices.filter((device) => device.status).length} />
                 <StatCard icon={Activity} label="Total de Dispositivos" value={devices.length} accent="text-green-400" delay={0.1} />
-                <StatCard icon={Layers} label="Projetos" value={projects.length} accent="text-purple-300" delay={0.2} />
+                <StatCard icon={Layers} label="Uso do Plano" value={`${limits.devices_used}/${limits.device_limit}`} accent="text-purple-300" delay={0.2} />
                 <StatCard icon={Wifi} label="Online" value={onlineDevices} accent="text-blue-300" delay={0.3} />
               </div>
+              {!limits.can_add_device && (
+                <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                  Limite de dispositivos do plano atual atingido. A dashboard continua operando, mas novos dispositivos exigem upgrade em Minha Assinatura.
+                </div>
+              )}
             </>
           )}
 

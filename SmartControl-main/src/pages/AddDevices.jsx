@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
-import { supabase } from '@/lib/customSupabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,9 +21,12 @@ import {
 import { sanitizeText } from '@/lib/security';
 import { discoverDevices, mapDiscoveredDataToForm } from '@/lib/deviceDiscovery';
 import { deviceKindTemplates, getDeviceKindTemplate } from '@/lib/deviceTemplates';
+import { fetchBillingJson } from '@/lib/billing';
+import { useSubscription } from '@/hooks/useSubscription';
 
 const AddDevice = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
+  const { currentPlan, limits, refresh: refreshSubscription } = useSubscription();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
@@ -93,11 +95,6 @@ const AddDevice = () => {
     });
   };
 
-  const shouldRetryWithoutNewColumns = (error) => {
-    const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
-    return message.includes('column') || message.includes('schema') || message.includes('cache');
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -111,6 +108,15 @@ const AddDevice = () => {
       toast({
         title: 'Nome obrigatório',
         description: 'Informe um nome para o dispositivo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!limits.can_add_device) {
+      toast({
+        title: 'Limite do plano atingido',
+        description: `Seu plano ${currentPlan.name} permite ${limits.device_limit} dispositivo(s). Faca upgrade em Minha Assinatura.`,
         variant: 'destructive',
       });
       return;
@@ -185,29 +191,24 @@ const AddDevice = () => {
         : {},
     };
 
-    let { error } = await supabase
-      .from('devices')
-      .insert(professionalPayload);
-
-    if (error && shouldRetryWithoutNewColumns(error)) {
-      const fallback = await supabase
-        .from('devices')
-        .insert(basePayload);
-      error = fallback.error;
-    }
-
-    if (error) {
-      toast({
-        title: 'Erro ao adicionar dispositivo',
-        description: error.message,
-        variant: 'destructive',
+    try {
+      await fetchBillingJson('/api/devices', {
+        token: session?.access_token,
+        method: 'POST',
+        body: professionalPayload,
       });
-    } else {
+      refreshSubscription();
       toast({
         title: 'Dispositivo adicionado!',
         description: `${safeName} foi vinculado ao projeto ${safeProjectName}.`,
       });
       navigate('/devices');
+    } catch (error) {
+      toast({
+        title: 'Erro ao adicionar dispositivo',
+        description: error.message,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -278,6 +279,15 @@ const AddDevice = () => {
               <p className="theme-muted">
                 Apenas os dados essenciais são necessários para cadastrar o dispositivo. O restante é gerado automaticamente pelo backend e pela firmware.
               </p>
+            </div>
+
+            <div className={`rounded-2xl border p-4 text-sm ${
+              limits.can_add_device
+                ? 'border-purple-400/30 bg-purple-500/10 text-purple-100'
+                : 'border-amber-400/30 bg-amber-500/10 text-amber-100'
+            }`}>
+              Plano atual: <strong>{currentPlan.name}</strong> - {limits.devices_used}/{limits.device_limit} dispositivo(s) usados.
+              {!limits.can_add_device && ' Faca upgrade em Minha Assinatura para cadastrar novos dispositivos.'}
             </div>
 
             <form onSubmit={handleSubmit} className="theme-card mobile-card space-y-6 rounded-xl p-4 sm:p-8">

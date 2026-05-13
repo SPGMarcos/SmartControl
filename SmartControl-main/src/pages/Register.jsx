@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import ThemeToggle from '@/components/ThemeToggle';
 import { UserPlus } from 'lucide-react';
 import { normalizeEmail, sanitizeText, validateDisplayName, validateEmail, validatePassword } from '@/lib/security';
+import { getSafeRedirectPath } from '@/lib/billing';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -21,6 +22,7 @@ const Register = () => {
   const [formError, setFormError] = useState('');
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,7 +54,13 @@ const Register = () => {
     setLoading(false);
 
     if (!error) {
-      navigate('/login');
+      const params = new URLSearchParams(location.search);
+      const planPriceId = params.get('plan') || params.get('price_id');
+      const redirect = getSafeRedirectPath(
+        params.get('redirect') || (planPriceId ? `/billing/checkout?price_id=${encodeURIComponent(planPriceId)}` : ''),
+        '/dashboard',
+      );
+      navigate(`/login?redirect=${encodeURIComponent(redirect)}`);
     }
   };
 

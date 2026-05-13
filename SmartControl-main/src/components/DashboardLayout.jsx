@@ -11,7 +11,7 @@ import {
   LogOut,
   Menu,
   ShoppingBag,
-  Layers,
+  CreditCard,
 } from 'lucide-react';
 import { getUserDisplayName } from '@/lib/deviceProjects';
 
@@ -30,7 +30,7 @@ const DashboardLayout = ({ children }) => {
     { icon: Home, label: 'Home', path: '/' },
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Zap, label: 'Dispositivos', path: '/devices' },
-    { icon: Layers, label: 'Projetos', path: '/dashboard', hash: '#projects' },
+    { icon: CreditCard, label: 'Minha Assinatura', path: '/subscription' },
     { icon: ShoppingBag, label: 'Loja', path: '/shop' },
   ];
 
@@ -160,9 +160,9 @@ const DashboardLayout = ({ children }) => {
             <Zap className="h-5 w-5" />
             Dispositivos
           </Link>
-          <Link to="/shop" className={mobileItemClass(primaryItems[4])}>
-            <ShoppingBag className="h-5 w-5" />
-            Loja
+          <Link to="/subscription" className={mobileItemClass(primaryItems[3])}>
+            <CreditCard className="h-5 w-5" />
+            Plano
           </Link>
         </div>
       </nav>

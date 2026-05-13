@@ -13,6 +13,26 @@ services:
         value: https://ldjdqbucmnfxuifieqhp.supabase.co
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_API_VERSION
+        sync: false
+      - key: STRIPE_PRICE_RESIDENCIAL_SMART
+        sync: false
+      - key: STRIPE_PRICE_HORTA_URBANA
+        sync: false
+      - key: STRIPE_PRICE_PRODUTOR_ESSENCIAL
+        sync: false
+      - key: STRIPE_PRICE_AGRO_PROFISSIONAL
+        sync: false
+      - key: STRIPE_PRICE_ESTUFA_INTELIGENTE
+        sync: false
+      - key: STRIPE_PRICE_AGRO_ESCALA
+        sync: false
+      - key: APP_PUBLIC_URL
+        value: https://spgmarcos.github.io/SmartControl
       - key: MQTT_URL
         value: mqtts://ff967c06.ala.us-east-1.emqxsl.com:8883
       - key: MQTT_USERNAME

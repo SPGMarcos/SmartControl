@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Edit3, Layers, Save, ShieldCheck, Wifi, X } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import HydroponicsDevicePanel from '@/components/HydroponicsDevicePanel';
+import DeviceMonitoringPanel from '@/components/DeviceMonitoringPanel';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { buildMqttTopics, buildDeviceExternalId } from '@/lib/mqttTopics';
@@ -667,6 +668,8 @@ const DeviceDetail = () => {
               </div>
             </motion.section>
           </div>
+
+          <DeviceMonitoringPanel device={device} />
         </div>
       </DashboardLayout>
     </>

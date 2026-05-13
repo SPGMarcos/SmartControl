@@ -1,5 +1,5 @@
 import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/SupabaseAuthContext'
 import Layout from '@/components/Layout'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -16,13 +16,18 @@ const DeviceDetail = React.lazy(() => import('@/pages/DeviceDetail'))
 const Shop = React.lazy(() => import('@/pages/Shop'))
 const Settings = React.lazy(() => import('@/pages/Settings'))
 const Admin = React.lazy(() => import('@/pages/Admin'))
+const Subscription = React.lazy(() => import('@/pages/Subscription'))
+const BillingCheckout = React.lazy(() => import('@/pages/BillingCheckout'))
+const BillingResult = React.lazy(() => import('@/pages/BillingResult'))
 
 
 // Componentes de Rota Protegida
 const PrivateRoute = ({ children }) => {
   const { user, session, loading } = useAuth()
+  const location = useLocation()
   if (loading) return <LoadingScreen />
-  return user && session && !isSessionExpired(session) ? children : <Navigate to="/login" replace />
+  const redirect = encodeURIComponent(`${location.pathname}${location.search}${location.hash}`)
+  return user && session && !isSessionExpired(session) ? children : <Navigate to={`/login?redirect=${redirect}`} replace />
 }
 
 const AdminRoute = ({ children }) => {
@@ -52,6 +57,10 @@ const routes = [
   { path: '/devices', element: <Devices />, isPrivate: true },
   { path: '/devices/:id', element: <DeviceDetail />, isPrivate: true },
   { path: '/add-device', element: <AddDevice />, isPrivate: true },
+  { path: '/subscription', element: <Subscription />, isPrivate: true },
+  { path: '/billing/checkout', element: <BillingCheckout />, isPrivate: true },
+  { path: '/billing/success', element: <BillingResult />, isPrivate: true },
+  { path: '/billing/cancel', element: <BillingResult />, isPrivate: true },
   { path: '/shop', element: <Shop />, isPublic: true },
   { path: '/settings', element: <Settings />, isPrivate: true },
   { path: '/admin', element: <Admin />, isAdmin: true },

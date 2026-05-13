@@ -1,30 +1,29 @@
 import React from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   CheckCircle2,
   Cpu,
   Droplets,
   Gauge,
-  Home as HomeIcon,
-  Leaf,
   Lightbulb,
   LockKeyhole,
   Shield,
   ShieldCheck,
   Smartphone,
-  Sprout,
-  Tractor,
-  Warehouse,
   Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import MarketplaceModal from '@/components/MarketplaceModal';
+import PlanCards from '@/components/PlanCards';
+import { useBillingPlans } from '@/hooks/useBillingPlans';
 import heroImage from '@/assets/smartcontrol-hero.svg';
 
 const Home = () => {
+  const navigate = useNavigate();
+  const { plans: billingPlans, loading: plansLoading, error: plansError } = useBillingPlans();
   const basePath = import.meta.env.BASE_URL || '/';
   const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
   const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://smartcontrol.app';
@@ -88,50 +87,14 @@ const Home = () => {
     },
   ];
 
-  const plans = [
-    {
-      icon: HomeIcon,
-      name: 'Residencial Smart',
-      profile: 'Usuários residenciais',
-      description: 'Automação de iluminação, jardim, piscina, portão e irrigação doméstica com controle remoto simples.',
-      benefits: ['Até 10 dispositivos', 'Alertas básicos', 'Controle via painel web', 'Preparado para voz e Home Assistant'],
-    },
-    {
-      icon: Leaf,
-      name: 'Horta Urbana',
-      profile: 'Hortas urbanas',
-      description: 'Solução para pequenos cultivos com irrigação programada, sensores de umidade e acompanhamento diário.',
-      benefits: ['Irrigação por setores', 'Sensores ambientais', 'Histórico de acionamentos', 'Suporte de implantação'],
-    },
-    {
-      icon: Sprout,
-      name: 'Produtor Essencial',
-      profile: 'Pequenos produtores',
-      description: 'Controle de bombas, válvulas e iluminação para produtores que precisam reduzir trabalho manual.',
-      benefits: ['Até 25 dispositivos', 'Rotinas de automação', 'Monitoramento remoto', 'Integração com ESP32/ESP8266'],
-    },
-    {
-      icon: Tractor,
-      name: 'Agro Profissional',
-      profile: 'Agricultores',
-      description: 'Automação agrícola para áreas maiores com mais pontos de controle, telemetria e operação por projeto.',
-      benefits: ['Projetos por área', 'Controle de bombas', 'Status online/offline', 'Base para MQTT e integrações externas'],
-    },
-    {
-      icon: Warehouse,
-      name: 'Estufa Inteligente',
-      profile: 'Estufas automatizadas',
-      description: 'Controle climático, irrigação, sensores e acionamentos rápidos para ambientes controlados.',
-      benefits: ['Sensores de ambiente', 'Controle climático', 'Alertas operacionais', 'Dashboard centralizado'],
-    },
-    {
-      icon: Gauge,
-      name: 'Agro Escala',
-      profile: 'Grandes produtores',
-      description: 'Base para operação comercial com múltiplos projetos, dispositivos distribuídos e expansão sob demanda.',
-      benefits: ['Múltiplas unidades', 'Arquitetura escalável', 'Suporte personalizado', 'Integrações futuras com voz e cloud'],
-    },
-  ];
+  const handlePlanSelect = (plan) => {
+    if (!plan?.stripe_price_id) {
+      navigate('/register');
+      return;
+    }
+
+    navigate(`/billing/checkout?price_id=${encodeURIComponent(plan.stripe_price_id)}`);
+  };
 
   return (
     <>
@@ -191,18 +154,6 @@ const Home = () => {
               <p className="mx-auto mb-6 max-w-3xl text-base leading-7 text-gray-300 sm:mb-8 sm:text-xl md:text-2xl">
                 Automação residencial e agrícola de última geração. Controle seus dispositivos IoT de qualquer lugar.
               </p>
-              <p className="mx-auto mb-6 max-w-3xl text-base text-gray-400 md:text-lg">
-                Uma solução para quem precisa operar automação residencial, irrigação inteligente,
-                estufas, bombas, válvulas e sensores com mais previsibilidade e menos trabalho manual.
-              </p>
-              <div className="flex flex-col justify-center gap-3 sm:flex-row sm:gap-4">
-                <Link to="/register" className="w-full sm:w-auto">
-                  <Button size="lg" className="w-full bg-purple-600 px-6 py-5 text-base text-white hover:bg-purple-700 sm:w-auto sm:px-8 sm:py-6 sm:text-lg">
-                    Começar Agora
-                  </Button>
-                </Link>
-                <MarketplaceModal triggerLabel="Ver Loja" triggerMode="button" triggerClassName="w-full px-6 py-5 text-base sm:w-auto sm:px-8 sm:py-6 sm:text-lg" />
-              </div>
             </motion.div>
 
             <motion.div
@@ -237,6 +188,20 @@ const Home = () => {
                     <span className="block font-semibold text-white">Pronto para ESP32 e ESP8266</span>
                     <span className="text-gray-400">Base visual para automação real</span>
                   </div>
+                </div>
+              </div>
+              <div className="mx-auto mt-8 max-w-3xl text-center sm:mt-10">
+                <p className="mx-auto mb-6 text-base leading-7 text-gray-300 md:text-lg">
+                  Uma solução para quem precisa operar automação residencial, irrigação inteligente,
+                  estufas, bombas, válvulas e sensores com mais previsibilidade e menos trabalho manual.
+                </p>
+                <div className="flex flex-col justify-center gap-3 sm:flex-row sm:gap-4">
+                  <Link to="/register" className="w-full sm:w-auto">
+                    <Button size="lg" className="w-full bg-purple-600 px-6 py-5 text-base text-white hover:bg-purple-700 sm:w-auto sm:px-8 sm:py-6 sm:text-lg">
+                      Começar Agora
+                    </Button>
+                  </Link>
+                  <MarketplaceModal triggerLabel="Ver Loja" triggerMode="button" triggerClassName="w-full px-6 py-5 text-base sm:w-auto sm:px-8 sm:py-6 sm:text-lg" />
                 </div>
               </div>
               <div className="mb-8 mt-8 flex flex-wrap justify-center gap-3">
@@ -377,42 +342,13 @@ const Home = () => {
               </p>
             </motion.div>
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-6">
-              {plans.map((plan, index) => {
-                const Icon = plan.icon;
-                return (
-                  <motion.div
-                    key={plan.name}
-                    initial={{ opacity: 0, y: 30 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: index * 0.08 }}
-                    viewport={{ once: true }}
-                    className="gradient-card mobile-card flex h-full flex-col rounded-2xl border border-purple-500/20 p-5 hover:border-purple-400/50 sm:p-6"
-                  >
-                    <div className="mb-5 flex flex-col items-start gap-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
-                      <span className="rounded-2xl border border-white/10 bg-purple-500/10 p-3">
-                        <Icon className="h-7 w-7 text-purple-300" />
-                      </span>
-                      <span className="max-w-full rounded-full bg-white/5 px-3 py-1 text-xs text-gray-300">
-                        {plan.profile}
-                      </span>
-                    </div>
-
-                    <h3 className="text-2xl font-bold text-white">{plan.name}</h3>
-                    <p className="mt-3 flex-1 text-sm leading-6 text-gray-400">{plan.description}</p>
-
-                    <div className="mt-6 space-y-3">
-                      {plan.benefits.map((benefit) => (
-                        <div key={benefit} className="flex items-start gap-3 text-sm text-gray-300">
-                          <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none text-purple-300" />
-                          <span>{benefit}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+            <PlanCards
+              plans={billingPlans}
+              loading={plansLoading}
+              error={plansError}
+              onSelect={handlePlanSelect}
+              ctaLabel="Assinar agora"
+            />
           </div>
         </section>
 

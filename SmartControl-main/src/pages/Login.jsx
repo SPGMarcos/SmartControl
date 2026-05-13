@@ -19,6 +19,7 @@ import {
   validateEmail,
   validatePassword,
 } from '@/lib/security';
+import { getSafeRedirectPath } from '@/lib/billing';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -41,6 +42,7 @@ const Login = () => {
   const { user, session, signIn, resetPassword, updatePassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const redirectPath = getSafeRedirectPath(new URLSearchParams(location.search).get('redirect'), '/dashboard');
 
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
@@ -53,9 +55,9 @@ const Login = () => {
       hashParams.has('access_token');
 
     if (user && session && !isRecoveryLink) {
-      navigate('/dashboard', { replace: true });
+      navigate(redirectPath, { replace: true });
     }
-  }, [location.hash, location.search, navigate, session, user]);
+  }, [location.hash, location.search, navigate, redirectPath, session, user]);
 
   useEffect(() => {
     let isMounted = true;

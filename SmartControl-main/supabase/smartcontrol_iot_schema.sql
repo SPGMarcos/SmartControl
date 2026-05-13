@@ -70,6 +70,54 @@ create table if not exists public.logs (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.billing_customers (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  stripe_customer_id text not null unique,
+  email text,
+  name text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  stripe_customer_id text not null,
+  stripe_subscription_id text not null unique,
+  stripe_price_id text,
+  stripe_product_id text,
+  plan_key text not null default 'free',
+  plan_name text not null default 'SmartControl Free',
+  status text not null default 'incomplete',
+  cancel_at_period_end boolean not null default false,
+  current_period_start timestamptz,
+  current_period_end timestamptz,
+  trial_start timestamptz,
+  trial_end timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.subscription_invoices (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  stripe_customer_id text,
+  stripe_invoice_id text not null unique,
+  stripe_subscription_id text,
+  amount_due integer not null default 0,
+  amount_paid integer not null default 0,
+  currency text not null default 'brl',
+  status text not null default 'unknown',
+  hosted_invoice_url text,
+  invoice_pdf text,
+  paid_at timestamptz,
+  period_start timestamptz,
+  period_end timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 drop index if exists devices_device_id_unique_idx;
 
 create unique index if not exists devices_user_device_id_unique_idx
@@ -91,6 +139,18 @@ create index if not exists sensors_device_created_idx
 
 create index if not exists logs_device_created_idx
   on public.logs (device_id, created_at desc);
+
+create index if not exists billing_customers_stripe_customer_idx
+  on public.billing_customers (stripe_customer_id);
+
+create index if not exists subscriptions_user_status_idx
+  on public.subscriptions (user_id, status, current_period_end desc);
+
+create index if not exists subscriptions_stripe_customer_idx
+  on public.subscriptions (stripe_customer_id);
+
+create index if not exists subscription_invoices_user_created_idx
+  on public.subscription_invoices (user_id, created_at desc);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -117,10 +177,94 @@ create trigger sensors_set_updated_at
 before update on public.sensors
 for each row execute function public.set_updated_at();
 
+drop trigger if exists billing_customers_set_updated_at on public.billing_customers;
+create trigger billing_customers_set_updated_at
+before update on public.billing_customers
+for each row execute function public.set_updated_at();
+
+drop trigger if exists subscriptions_set_updated_at on public.subscriptions;
+create trigger subscriptions_set_updated_at
+before update on public.subscriptions
+for each row execute function public.set_updated_at();
+
+create or replace function public.get_smartcontrol_device_limit(p_user_id uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_limit integer;
+begin
+  select coalesce(
+    nullif((metadata->>'device_limit')::integer, 0),
+    nullif((metadata->'plan'->>'device_limit')::integer, 0),
+    case plan_key
+      when 'residencial_smart' then 10
+      when 'horta_urbana' then 12
+      when 'produtor_essencial' then 25
+      when 'agro_profissional' then 60
+      when 'estufa_inteligente' then 40
+      when 'agro_escala' then 150
+      else 3
+    end
+  )
+  into v_limit
+  from public.subscriptions
+  where user_id = p_user_id
+    and status in ('active', 'trialing', 'past_due')
+  order by current_period_end desc nulls last, updated_at desc
+  limit 1;
+
+  return coalesce(v_limit, 3);
+exception
+  when others then
+    return 3;
+end;
+$$;
+
+create or replace function public.enforce_smartcontrol_device_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_limit integer;
+  v_current integer;
+begin
+  if new.user_id is null then
+    return new;
+  end if;
+
+  v_limit := public.get_smartcontrol_device_limit(new.user_id);
+
+  select count(*)
+  into v_current
+  from public.devices
+  where user_id = new.user_id;
+
+  if v_current >= v_limit then
+    raise exception 'Limite de dispositivos do plano atual atingido (%).', v_limit
+      using errcode = 'P0001';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists devices_enforce_plan_limit on public.devices;
+create trigger devices_enforce_plan_limit
+before insert on public.devices
+for each row execute function public.enforce_smartcontrol_device_limit();
+
 alter table public.projects enable row level security;
 alter table public.devices enable row level security;
 alter table public.sensors enable row level security;
 alter table public.logs enable row level security;
+alter table public.billing_customers enable row level security;
+alter table public.subscriptions enable row level security;
+alter table public.subscription_invoices enable row level security;
 
 drop policy if exists "Users can manage own projects" on public.projects;
 create policy "Users can manage own projects"
@@ -157,9 +301,29 @@ create policy "Users can read own logs"
     )
   );
 
+drop policy if exists "Users can read own billing customer" on public.billing_customers;
+create policy "Users can read own billing customer"
+  on public.billing_customers
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can read own subscriptions" on public.subscriptions;
+create policy "Users can read own subscriptions"
+  on public.subscriptions
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can read own subscription invoices" on public.subscription_invoices;
+create policy "Users can read own subscription invoices"
+  on public.subscription_invoices
+  for select
+  using (auth.uid() = user_id);
+
 alter table public.devices replica identity full;
 alter table public.sensors replica identity full;
 alter table public.logs replica identity full;
+alter table public.subscriptions replica identity full;
+alter table public.subscription_invoices replica identity full;
 
 do $$
 begin
@@ -179,6 +343,20 @@ begin
 
   begin
     alter publication supabase_realtime add table public.logs;
+  exception
+    when duplicate_object then null;
+    when undefined_object then null;
+  end;
+
+  begin
+    alter publication supabase_realtime add table public.subscriptions;
+  exception
+    when duplicate_object then null;
+    when undefined_object then null;
+  end;
+
+  begin
+    alter publication supabase_realtime add table public.subscription_invoices;
   exception
     when duplicate_object then null;
     when undefined_object then null;
