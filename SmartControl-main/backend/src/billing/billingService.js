@@ -247,7 +247,7 @@ export const syncStripeCustomerForUser = async ({ stripe, supabase, env = proces
 
   if (sessionId) {
     const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ['customer', 'subscription', 'subscription.items.data.price.product'],
+      expand: ['customer', 'subscription'],
     });
 
     customerId = getStripeId(session.customer);
@@ -301,7 +301,7 @@ export const syncStripeCustomerForUser = async ({ stripe, supabase, env = proces
     customer: customerId,
     status: 'all',
     limit: 100,
-    expand: ['data.items.data.price.product'],
+    expand: ['data.items.data.price'],
   });
 
   for (const subscription of subscriptions.data) {
