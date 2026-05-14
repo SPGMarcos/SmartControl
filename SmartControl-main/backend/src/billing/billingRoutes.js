@@ -5,6 +5,7 @@ import {
   getBillingOverview,
   handleStripeEvent,
   listBillingPlans,
+  syncStripeCustomerForUser,
 } from './billingService.js';
 
 const requireUser = async (req, res, getRequestUser) => {
@@ -15,6 +16,47 @@ const requireUser = async (req, res, getRequestUser) => {
   }
 
   return user;
+};
+
+const shouldIgnoreSchemaError = (error) => {
+  const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+  return message.includes('column') || message.includes('schema') || message.includes('cache') || message.includes('relation');
+};
+
+const registerWebhookEventStart = async ({ supabase, event }) => {
+  const { error } = await supabase.from('stripe_webhook_events').insert([{
+    event_id: event.id,
+    event_type: event.type,
+    object_id: event.data?.object?.id || null,
+    status: 'processing',
+    payload: {
+      livemode: event.livemode,
+      api_version: event.api_version,
+      pending_webhooks: event.pending_webhooks,
+    },
+  }]);
+
+  if (!error) return { duplicate: false, available: true };
+  if (error.code === '23505') return { duplicate: true, available: true };
+  if (shouldIgnoreSchemaError(error)) return { duplicate: false, available: false };
+
+  console.warn('Nao foi possivel registrar evento Stripe antes do processamento:', error.message);
+  return { duplicate: false, available: false };
+};
+
+const markWebhookEventFinished = async ({ supabase, event, status, errorMessage = null }) => {
+  const { error } = await supabase
+    .from('stripe_webhook_events')
+    .update({
+      status,
+      processed_at: new Date().toISOString(),
+      error_message: errorMessage,
+    })
+    .eq('event_id', event.id);
+
+  if (error && !shouldIgnoreSchemaError(error)) {
+    console.warn('Nao foi possivel atualizar status do evento Stripe:', error.message);
+  }
 };
 
 export const registerStripeWebhookRoute = (app, { stripe, supabase, env = process.env, logEvent }) => {
@@ -39,7 +81,20 @@ export const registerStripeWebhookRoute = (app, { stripe, supabase, env = proces
     }
 
     try {
+      const webhookRegistration = await registerWebhookEventStart({ supabase, event });
+      if (webhookRegistration.duplicate) {
+        await logEvent?.({
+          type: `stripe_duplicate_${event.type}`,
+          payload: {
+            event_id: event.id,
+            object_id: event.data?.object?.id,
+          },
+        });
+        return res.json({ received: true, duplicate: true });
+      }
+
       const result = await handleStripeEvent({ stripe, supabase, env, event });
+      await markWebhookEventFinished({ supabase, event, status: 'processed' });
       await logEvent?.({
         userId: result?.user_id || null,
         type: `stripe_${event.type}`,
@@ -53,6 +108,12 @@ export const registerStripeWebhookRoute = (app, { stripe, supabase, env = proces
       return res.json({ received: true });
     } catch (error) {
       console.error('Erro ao processar webhook Stripe:', error);
+      await markWebhookEventFinished({
+        supabase,
+        event,
+        status: 'failed',
+        errorMessage: error.message || 'webhook_failed',
+      });
       return res.status(500).json({ error: 'Falha ao processar webhook Stripe.' });
     }
   });
@@ -71,6 +132,8 @@ export const registerBillingRoutes = (app, { stripe, supabase, env = process.env
 
       return res.json({
         stripe_configured: Boolean(stripe),
+        stripe_mode: env.STRIPE_SECRET_KEY?.startsWith('sk_test_') ? 'test' : 'live',
+        test_mode: env.STRIPE_SECRET_KEY?.startsWith('sk_test_') || false,
         plans,
       });
     } catch (error) {
@@ -95,6 +158,48 @@ export const registerBillingRoutes = (app, { stripe, supabase, env = process.env
     } catch (error) {
       console.error('Erro ao carregar assinatura:', error);
       return res.status(500).json({ error: 'Nao foi possivel carregar a assinatura.' });
+    }
+  });
+
+  app.post('/api/billing/sync', async (req, res) => {
+    const user = await requireUser(req, res, getRequestUser);
+    if (!user) return;
+
+    try {
+      const syncResult = await syncStripeCustomerForUser({
+        stripe,
+        supabase,
+        env,
+        user,
+        sessionId: req.body?.session_id || req.body?.sessionId || null,
+      });
+      const overview = await getBillingOverview({
+        supabase,
+        stripe,
+        env,
+        userId: user.id,
+      });
+
+      await logEvent?.({
+        userId: user.id,
+        type: 'stripe_manual_sync',
+        payload: {
+          synced: syncResult.synced,
+          customer_id: syncResult.customer_id || null,
+          subscription_count: syncResult.subscriptions?.length || 0,
+        },
+      });
+
+      return res.json({
+        ...overview,
+        sync: syncResult,
+      });
+    } catch (error) {
+      console.error('Erro ao sincronizar assinatura Stripe:', error);
+      return res.status(error.statusCode || 400).json({
+        error: error.message || 'Nao foi possivel sincronizar a assinatura.',
+        code: 'subscription_sync_failed',
+      });
     }
   });
 

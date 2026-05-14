@@ -277,7 +277,7 @@ const resolvePendingCommand = (requestId) => {
 
 const shouldRetryWithoutNewColumns = (error) => {
   const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
-  return message.includes('column') || message.includes('schema') || message.includes('cache');
+  return message.includes('column') || message.includes('schema') || message.includes('cache') || message.includes('relation');
 };
 
 const toBoolean = (value, fallback = false) => {
@@ -586,6 +586,28 @@ const handleMqttMessage = async (topic, message) => {
 
   await safeUpdateDevice(device.id, updatePayload);
 
+  if (presenceUpdate.presence.isPresenceEvent) {
+    const wasOnline = device.online === true || String(device.connection_status || '').toLowerCase() === 'online';
+    if (wasOnline !== presenceUpdate.presence.online) {
+      const presenceEvent = await supabase.from('device_presence_events').insert([{
+        device_id: device.id,
+        user_id: device.user_id,
+        event_type: presenceUpdate.presence.online ? 'online' : 'offline',
+        reason: presenceUpdate.presence.offlineReason || presenceUpdate.presence.source,
+        started_at: now,
+        metadata: {
+          topic,
+          source: presenceUpdate.presence.source,
+          payload,
+        },
+      }]);
+
+      if (presenceEvent.error && !shouldRetryWithoutNewColumns(presenceEvent.error)) {
+        console.warn('Nao foi possivel gravar evento de presenca:', presenceEvent.error.message);
+      }
+    }
+  }
+
   let ackEvent = null;
   if (eventType === 'ack') {
     const requestId = payload.request_id || payload.requestId || '';
@@ -723,6 +745,34 @@ const markStaleDevicesOffline = async () => {
         ...offlinePatch,
       },
     });
+
+    await logEvent({
+      deviceId: device.id,
+      userId: device.user_id,
+      type: 'device_offline_timeout',
+      payload: {
+        reason: 'heartbeat_timeout',
+        last_heartbeat: device.last_heartbeat,
+        timeout_ms: deviceHeartbeatTimeoutMs,
+        detected_at: now,
+      },
+    });
+
+    const presenceEvent = await supabase.from('device_presence_events').insert([{
+      device_id: device.id,
+      user_id: device.user_id,
+      event_type: 'offline',
+      reason: 'heartbeat_timeout',
+      started_at: now,
+      metadata: {
+        last_heartbeat: device.last_heartbeat,
+        timeout_ms: deviceHeartbeatTimeoutMs,
+      },
+    }]);
+
+    if (presenceEvent.error && !shouldRetryWithoutNewColumns(presenceEvent.error)) {
+      console.warn('Nao foi possivel gravar evento de presenca:', presenceEvent.error.message);
+    }
 
     sendRealtimeEvent({
       type: 'device_state',

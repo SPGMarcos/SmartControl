@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { FREE_PLAN, fetchBillingJson } from '@/lib/billing';
@@ -22,6 +22,7 @@ export const useSubscription = () => {
   const [overview, setOverview] = useState(() => buildFallbackOverview());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const syncedOnLoginRef = useRef('');
 
   const refresh = useCallback(async () => {
     if (!session?.access_token || !user?.id) {
@@ -48,10 +49,38 @@ export const useSubscription = () => {
     }
   }, [session?.access_token, user?.id]);
 
+  const sync = useCallback(async ({ sessionId } = {}) => {
+    if (!session?.access_token || !user?.id) return buildFallbackOverview();
+
+    setError('');
+    const payload = await fetchBillingJson('/api/billing/sync', {
+      token: session.access_token,
+      method: 'POST',
+      body: sessionId ? { session_id: sessionId } : {},
+    });
+    setOverview({
+      ...buildFallbackOverview(),
+      ...payload,
+    });
+    return payload;
+  }, [session?.access_token, user?.id]);
+
   useEffect(() => {
     setLoading(true);
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!session?.access_token || !user?.id) return;
+    if (syncedOnLoginRef.current === user.id) return;
+    syncedOnLoginRef.current = user.id;
+
+    window.setTimeout(() => {
+      sync().catch((syncError) => {
+        console.warn('Sincronizacao Stripe no login nao concluida:', syncError.message);
+      });
+    }, 500);
+  }, [session?.access_token, sync, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return undefined;
@@ -89,5 +118,6 @@ export const useSubscription = () => {
     loading,
     error,
     refresh,
-  }), [error, loading, overview, refresh]);
+    sync,
+  }), [error, loading, overview, refresh, sync]);
 };

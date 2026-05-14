@@ -37,6 +37,11 @@ const toIsoFromStripeTimestamp = (value) => {
   return new Date(Number(value) * 1000).toISOString();
 };
 
+const shouldRetryWithoutNewColumns = (error) => {
+  const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+  return message.includes('column') || message.includes('schema') || message.includes('cache');
+};
+
 const sanitizeReturnUrl = (url, { req, env = process.env } = {}) => {
   const fallbackBase =
     env.APP_PUBLIC_URL ||
@@ -90,10 +95,10 @@ export const listBillingPlans = async ({ stripe, env = process.env, includeFree 
         const price = await stripe.prices.retrieve(config.priceId, {
           expand: ['product'],
         });
-        if (price?.active !== false && price?.recurring?.interval === 'month') {
+        if (price?.active !== false && price?.recurring) {
           prices.push({ price, config });
         } else {
-          console.warn(`Stripe price ${config.priceId} ignorado: assinatura mensal ativa e obrigatoria.`);
+          console.warn(`Stripe price ${config.priceId} ignorado: preco recorrente ativo e obrigatorio.`);
         }
       } catch (error) {
         console.warn(`Stripe price ${config.priceId} nao pode ser carregado:`, error.message);
@@ -106,8 +111,8 @@ export const listBillingPlans = async ({ stripe, env = process.env, includeFree 
       limit: 100,
       expand: ['data.product'],
     });
-    const monthlyPrices = response.data.filter((price) => price.recurring?.interval === 'month');
-    const smartControlPrices = monthlyPrices.filter((price) => {
+    const recurringPrices = response.data.filter((price) => Boolean(price.recurring));
+    const smartControlPrices = recurringPrices.filter((price) => {
       const product = typeof price.product === 'object' ? price.product : {};
       const metadata = { ...(product.metadata || {}), ...(price.metadata || {}) };
       const productName = String(product.name || '').toLowerCase();
@@ -120,7 +125,7 @@ export const listBillingPlans = async ({ stripe, env = process.env, includeFree 
       );
     });
 
-    (smartControlPrices.length > 0 ? smartControlPrices : monthlyPrices)
+    (smartControlPrices.length > 0 ? smartControlPrices : recurringPrices)
       .forEach((price) => prices.push({ price, config: getPlanConfigByPriceId(price.id, env) }));
   }
 
@@ -161,6 +166,48 @@ export const findUserIdByStripeCustomer = async ({ supabase, customerId }) => {
   return subscriptionRow?.user_id || null;
 };
 
+export const findUserIdByEmail = async ({ supabase, email }) => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
+  const { data: customerRow } = await supabase
+    .from('billing_customers')
+    .select('user_id')
+    .ilike('email', normalizedEmail)
+    .maybeSingle();
+
+  if (customerRow?.user_id) return customerRow.user_id;
+
+  const { data: subscriptionRow } = await supabase
+    .from('subscriptions')
+    .select('user_id')
+    .ilike('email', normalizedEmail)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (subscriptionRow?.user_id) return subscriptionRow.user_id;
+
+  try {
+    let page = 1;
+    const perPage = 1000;
+
+    while (page <= 10) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+      if (error) throw error;
+
+      const user = (data?.users || []).find((item) => String(item.email || '').toLowerCase() === normalizedEmail);
+      if (user?.id) return user.id;
+      if ((data?.users || []).length < perPage) break;
+      page += 1;
+    }
+  } catch (error) {
+    console.warn('Nao foi possivel localizar usuario por email no Supabase Auth:', error.message);
+  }
+
+  return null;
+};
+
 export const getOrCreateStripeCustomer = async ({ stripe, supabase, user }) => {
   const { data: existing } = await supabase
     .from('billing_customers')
@@ -190,6 +237,82 @@ export const getOrCreateStripeCustomer = async ({ stripe, supabase, user }) => {
   });
 
   return customer.id;
+};
+
+export const syncStripeCustomerForUser = async ({ stripe, supabase, env = process.env, user, sessionId = null }) => {
+  if (!stripe || !user?.id) return { synced: false, reason: 'stripe_or_user_unavailable' };
+
+  const syncedSubscriptions = [];
+  let customerId = null;
+
+  if (sessionId) {
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['customer', 'subscription', 'subscription.items.data.price.product'],
+    });
+
+    customerId = getStripeId(session.customer);
+
+    if (session.client_reference_id && session.client_reference_id !== user.id) {
+      const error = new Error('Sessao de checkout pertence a outro usuario.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    if (session.mode === 'subscription' && session.subscription) {
+      const subscription = typeof session.subscription === 'object'
+        ? session.subscription
+        : await stripe.subscriptions.retrieve(session.subscription, { expand: ['items.data.price.product'] });
+      syncedSubscriptions.push(await upsertSubscriptionFromStripe({ stripe, supabase, env, subscription, fallbackUser: user }));
+    }
+  }
+
+  const email = String(user.email || '').trim().toLowerCase();
+  if (!customerId) {
+    const { data: existing } = await supabase
+      .from('billing_customers')
+      .select('stripe_customer_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    customerId = existing?.stripe_customer_id || null;
+  }
+
+  if (!customerId && email) {
+    const customers = await stripe.customers.list({ email, limit: 10 });
+    const matchingCustomer = customers.data.find((customer) => !customer.deleted) || customers.data[0] || null;
+    customerId = matchingCustomer?.id || null;
+  }
+
+  if (!customerId) {
+    return { synced: syncedSubscriptions.some(Boolean), reason: 'stripe_customer_not_found' };
+  }
+
+  await supabase.from('billing_customers').upsert({
+    user_id: user.id,
+    stripe_customer_id: customerId,
+    email: user.email || null,
+    name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+    updated_at: new Date().toISOString(),
+  }, {
+    onConflict: 'user_id',
+  });
+
+  const subscriptions = await stripe.subscriptions.list({
+    customer: customerId,
+    status: 'all',
+    limit: 100,
+    expand: ['data.items.data.price.product'],
+  });
+
+  for (const subscription of subscriptions.data) {
+    syncedSubscriptions.push(await upsertSubscriptionFromStripe({ stripe, supabase, env, subscription, fallbackUser: user }));
+  }
+
+  return {
+    synced: syncedSubscriptions.some(Boolean),
+    customer_id: customerId,
+    subscriptions: syncedSubscriptions.filter(Boolean),
+  };
 };
 
 export const getActiveSubscriptionRow = async ({ supabase, userId }) => {
@@ -378,7 +501,7 @@ export const createBillingPortalSession = async ({ stripe, supabase, env = proce
   };
 };
 
-export const upsertSubscriptionFromStripe = async ({ stripe, supabase, env = process.env, subscription }) => {
+export const upsertSubscriptionFromStripe = async ({ stripe, supabase, env = process.env, subscription, fallbackUser = null }) => {
   const hasExpandedPrice = subscription?.items?.data?.[0]?.price && typeof subscription.items.data[0].price.product === 'object';
   const expandedSubscription = hasExpandedPrice
     ? subscription
@@ -395,9 +518,24 @@ export const upsertSubscriptionFromStripe = async ({ stripe, supabase, env = pro
     ? normalizePlanFromStripePrice({ price, env, config: getPlanConfigByPriceId(price.id, env) })
     : normalizePlanFromSubscriptionRow(null);
   const productId = price ? getStripeId(price.product) : null;
+  let customerEmail = expandedSubscription.customer_email ||
+    (typeof expandedSubscription.customer === 'object' ? expandedSubscription.customer?.email : null) ||
+    fallbackUser?.email ||
+    null;
+
+  if (!customerEmail && customerId) {
+    try {
+      const customer = await stripe.customers.retrieve(customerId);
+      customerEmail = customer?.deleted ? null : customer?.email || null;
+    } catch (error) {
+      console.warn(`Nao foi possivel buscar email do customer ${customerId}:`, error.message);
+    }
+  }
   const userId =
     expandedSubscription.metadata?.user_id ||
-    await findUserIdByStripeCustomer({ supabase, customerId });
+    fallbackUser?.id ||
+    await findUserIdByStripeCustomer({ supabase, customerId }) ||
+    await findUserIdByEmail({ supabase, email: customerEmail });
 
   if (!userId) {
     console.warn(`Assinatura ${expandedSubscription.id} recebida sem usuario SmartControl associado.`);
@@ -406,6 +544,7 @@ export const upsertSubscriptionFromStripe = async ({ stripe, supabase, env = pro
 
   const row = {
     user_id: userId,
+    email: customerEmail,
     stripe_customer_id: customerId,
     stripe_subscription_id: expandedSubscription.id,
     stripe_price_id: price?.id || expandedSubscription.metadata?.price_id || null,
@@ -413,6 +552,8 @@ export const upsertSubscriptionFromStripe = async ({ stripe, supabase, env = pro
     plan_key: plan.key,
     plan_name: plan.name,
     status: expandedSubscription.status,
+    device_limit: plan.device_limit,
+    period: plan.recurring?.interval || 'month',
     cancel_at_period_end: Boolean(expandedSubscription.cancel_at_period_end),
     current_period_start: toIsoFromStripeTimestamp(periodStart),
     current_period_end: toIsoFromStripeTimestamp(periodEnd),
@@ -428,17 +569,28 @@ export const upsertSubscriptionFromStripe = async ({ stripe, supabase, env = pro
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from('subscriptions')
     .upsert(row, {
       onConflict: 'stripe_subscription_id',
     });
+
+  if (error && shouldRetryWithoutNewColumns(error)) {
+    const { email, device_limit: deviceLimit, period, ...fallbackRow } = row;
+    const fallback = await supabase
+      .from('subscriptions')
+      .upsert(fallbackRow, {
+        onConflict: 'stripe_subscription_id',
+      });
+    error = fallback.error;
+  }
 
   if (error) throw error;
 
   await supabase.from('billing_customers').upsert({
     user_id: userId,
     stripe_customer_id: customerId,
+    email: customerEmail,
     updated_at: new Date().toISOString(),
   }, {
     onConflict: 'user_id',

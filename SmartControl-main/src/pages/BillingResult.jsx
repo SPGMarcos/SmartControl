@@ -9,14 +9,16 @@ import { useSubscription } from '@/hooks/useSubscription';
 const BillingResult = () => {
   const location = useLocation();
   const isSuccess = location.pathname.includes('/success');
-  const { refresh } = useSubscription();
+  const { refresh, sync } = useSubscription();
 
   useEffect(() => {
     if (!isSuccess) return undefined;
 
+    const sessionId = new URLSearchParams(location.search).get('session_id');
+    sync({ sessionId }).catch(() => refresh());
     const timers = [800, 2200, 5000].map((delay) => window.setTimeout(refresh, delay));
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [isSuccess, refresh]);
+  }, [isSuccess, location.search, refresh, sync]);
 
   const Icon = isSuccess ? CheckCircle2 : XCircle;
 

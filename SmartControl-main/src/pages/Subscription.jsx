@@ -33,7 +33,7 @@ const InfoTile = ({ icon: Icon, label, value, accent = 'text-purple-300' }) => (
 
 const Subscription = () => {
   const { session } = useAuth();
-  const { plans, loading: plansLoading, error: plansError, refresh: refreshPlans } = useBillingPlans({ includeFree: true });
+  const { plans, loading: plansLoading, error: plansError, refresh: refreshPlans, stripeMode } = useBillingPlans({ includeFree: true });
   const {
     subscription,
     currentPlan,
@@ -207,7 +207,10 @@ const Subscription = () => {
           <section id="planos" className="space-y-4">
             <div>
               <h2 className="theme-title text-2xl font-bold">Planos disponiveis</h2>
-              <p className="theme-muted mt-1">Os nomes, descricoes e valores abaixo vem diretamente dos produtos e precos ativos no Stripe.</p>
+              <p className="theme-muted mt-1">
+                Os nomes, descricoes e valores abaixo vem diretamente dos produtos e precos ativos no Stripe.
+                {stripeMode === 'test' ? ' Ambiente Stripe TEST MODE ativo para cartoes de teste.' : ''}
+              </p>
             </div>
             <PlanCards
               plans={availablePlans}

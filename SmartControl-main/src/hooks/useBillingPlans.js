@@ -6,6 +6,7 @@ export const useBillingPlans = ({ includeFree = false } = {}) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [stripeConfigured, setStripeConfigured] = useState(false);
+  const [stripeMode, setStripeMode] = useState('unknown');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -16,10 +17,12 @@ export const useBillingPlans = ({ includeFree = false } = {}) => {
       const payload = await fetchBillingJson(`/api/billing/plans${query}`);
       setPlans(payload.plans || []);
       setStripeConfigured(Boolean(payload.stripe_configured));
+      setStripeMode(payload.stripe_mode || (payload.test_mode ? 'test' : 'live'));
     } catch (requestError) {
       setPlans([]);
       setError(requestError.message || 'Nao foi possivel carregar os planos.');
       setStripeConfigured(false);
+      setStripeMode('unknown');
     } finally {
       setLoading(false);
     }
@@ -34,6 +37,7 @@ export const useBillingPlans = ({ includeFree = false } = {}) => {
     loading,
     error,
     stripeConfigured,
+    stripeMode,
     refresh,
   };
 };

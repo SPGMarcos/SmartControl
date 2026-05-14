@@ -147,12 +147,26 @@ const buildOutages = ({ logs, device, timeoutMs, now }) => {
     .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
 };
 
-export const buildDeviceMonitoring = ({ device, logs = [], timeoutMs }) => {
+const presenceEventsToLogs = (events = []) =>
+  events.map((event) => ({
+    id: event.id,
+    type: event.event_type === 'online' ? 'presence_online' : 'presence_offline',
+    payload: {
+      online: event.event_type === 'online',
+      reason: event.reason,
+      metadata: event.metadata || {},
+    },
+    created_at: event.started_at || event.created_at,
+  }));
+
+export const buildDeviceMonitoring = ({ device, logs = [], presenceEvents = [], timeoutMs }) => {
   const now = new Date();
+  const mergedLogs = [...logs, ...presenceEventsToLogs(presenceEvents)]
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   const timeline = buildEmptyTimeline({ now, days: 7 });
   const timelineMap = new Map(timeline.map((day) => [day.date, day]));
 
-  logs.forEach((log) => {
+  mergedLogs.forEach((log) => {
     const at = new Date(log.created_at);
     if (Number.isNaN(at.getTime())) return;
 
@@ -181,7 +195,7 @@ export const buildDeviceMonitoring = ({ device, logs = [], timeoutMs }) => {
   const onlineBuckets = knownBuckets.filter((bucket) => bucket.state === 'online').length;
   const offlineBuckets = knownBuckets.filter((bucket) => bucket.state === 'offline').length;
   const uptimePercent = knownBuckets.length > 0 ? Math.round((onlineBuckets / knownBuckets.length) * 1000) / 10 : 0;
-  const outages = buildOutages({ logs, device, timeoutMs, now });
+  const outages = buildOutages({ logs: mergedLogs, device, timeoutMs, now });
 
   return {
     summary: {
@@ -195,6 +209,7 @@ export const buildDeviceMonitoring = ({ device, logs = [], timeoutMs }) => {
     },
     timeline,
     outages: outages.slice(0, 12),
+    events: mergedLogs.slice(-100).reverse(),
     generated_at: now.toISOString(),
   };
 };
@@ -223,9 +238,18 @@ export const registerDeviceMonitoringRoutes = (app, {
       return res.status(400).json({ error: error.message });
     }
 
+    const presenceResult = await supabase
+      .from('device_presence_events')
+      .select('id,event_type,reason,started_at,ended_at,duration_seconds,metadata,created_at')
+      .eq('device_id', resolved.device.id)
+      .gte('started_at', since.toISOString())
+      .order('started_at', { ascending: true })
+      .limit(1000);
+
     return res.json(buildDeviceMonitoring({
       device: resolved.device,
       logs: data || [],
+      presenceEvents: presenceResult.error ? [] : (presenceResult.data || []),
       timeoutMs: deviceHeartbeatTimeoutMs,
     }));
   });
