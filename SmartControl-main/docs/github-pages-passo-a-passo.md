@@ -21,7 +21,10 @@ Site URL:
 https://spgmarcos.github.io/SmartControl/
 
 Redirect URLs:
+https://spgmarcos.github.io/SmartControl/auth/callback
 https://spgmarcos.github.io/SmartControl/login?reset_password=true
+http://localhost:5173/auth/callback
+http://127.0.0.1:5173/auth/callback
 ```
 
 ## 2. Backend no Render

@@ -10,7 +10,7 @@ import {
   validateEmail,
   validatePassword,
 } from '@/lib/security';
-import { getAuthCallbackUrl, isAuthCallbackPath } from '@/lib/authRedirect';
+import { getAuthCallbackUrl, getPasswordResetRedirectUrl, isAuthCallbackPath } from '@/lib/authRedirect';
 
 const AuthContext = createContext(undefined);
 const SESSION_REMEMBER_KEY = 'smartcontrol.remember_session';
@@ -101,46 +101,6 @@ const hasActiveBrowserSession = () => {
 const readLastActivity = () => {
   if (typeof window === 'undefined') return Date.now();
   return Number(getStoredValue(window.localStorage, SESSION_ACTIVITY_KEY) || Date.now());
-};
-
-const getPasswordResetRedirectUrl = () => {
-  const isLocalUrl = (url) => {
-    try {
-      return ['localhost', '127.0.0.1', '::1'].includes(new URL(url).hostname);
-    } catch {
-      return false;
-    }
-  };
-
-  const toAbsoluteBaseUrl = (baseUrl) => {
-    if (/^https?:\/\//i.test(baseUrl)) return baseUrl;
-    const normalizedPath = baseUrl.startsWith('/') ? baseUrl : `/${baseUrl}`;
-    return `${window.location.origin}${normalizedPath}`;
-  };
-  const appendResetQuery = (baseUrl) => `${toAbsoluteBaseUrl(baseUrl).replace(/\/+$/, '')}/?reset_password=true`;
-  const configuredUrl = import.meta.env.VITE_PASSWORD_RESET_REDIRECT_URL;
-
-  if (configuredUrl && !(import.meta.env.PROD && isLocalUrl(configuredUrl))) {
-    return configuredUrl;
-  }
-
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-
-  const frontendUrl =
-    import.meta.env.VITE_FRONTEND_URL ||
-    import.meta.env.VITE_BASE_URL ||
-    import.meta.env.VITE_PUBLIC_APP_URL;
-
-  if (frontendUrl && !(import.meta.env.PROD && isLocalUrl(frontendUrl))) {
-    return appendResetQuery(frontendUrl);
-  }
-
-  const basePath = import.meta.env.BASE_URL || '/';
-  const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
-
-  return `${window.location.origin}${normalizedBasePath}?reset_password=true`;
 };
 
 const shouldRetryPasswordResetWithoutRedirect = (error) => {

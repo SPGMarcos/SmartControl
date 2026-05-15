@@ -101,7 +101,9 @@ Observacao: Render Free dorme apos inatividade. O primeiro comando depois de um 
 2. SQL Editor -> executar `SmartControl-main/supabase/smartcontrol_iot_schema.sql`.
 3. Authentication -> URL Configuration:
    - Site URL: `https://SEU_USUARIO.github.io/SmartControl/`
-   - Redirect URL: `https://SEU_USUARIO.github.io/SmartControl/login?reset_password=true`
+   - Redirect URLs:
+     - `https://SEU_USUARIO.github.io/SmartControl/auth/callback`
+     - `https://SEU_USUARIO.github.io/SmartControl/login?reset_password=true`
 4. Settings -> API:
    - Frontend usa `Project URL` e `anon public`.
    - Backend usa `service_role`, nunca no frontend.
