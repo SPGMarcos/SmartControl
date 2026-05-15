@@ -12,14 +12,48 @@ import { toast } from '@/components/ui/use-toast';
 import { groupDevicesByProject } from '@/lib/deviceProjects';
 import { subscribeBackendEvents } from '@/lib/realtimeEvents';
 
+const DeviceListSkeleton = () => (
+  <div className="space-y-4">
+    <div className="flex min-w-0 items-center gap-3">
+      <span className="theme-badge flex-none rounded-xl p-2">
+        <Layers className="theme-icon h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <div className="h-6 w-48 animate-pulse rounded bg-white/10" />
+        <div className="mt-2 h-4 w-32 animate-pulse rounded bg-white/10" />
+      </div>
+    </div>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div key={index} className="gradient-card mobile-card min-h-[245px] rounded-xl border border-purple-500/30 p-4 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="h-12 w-12 animate-pulse rounded-lg bg-white/10" />
+            <div className="min-w-0 flex-1">
+              <div className="h-5 w-3/4 animate-pulse rounded bg-white/10" />
+              <div className="mt-2 h-4 w-1/2 animate-pulse rounded bg-white/10" />
+            </div>
+          </div>
+          <div className="mt-6 h-8 w-full animate-pulse rounded bg-white/10" />
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="h-16 animate-pulse rounded-lg bg-white/10" />
+            <div className="h-16 animate-pulse rounded-lg bg-white/10" />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const Devices = () => {
   const { user } = useAuth();
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const hasLoadedOnceRef = React.useRef(false);
 
   const fetchDevices = useCallback(async ({ showLoader = false } = {}) => {
     if (!user) return;
-    if (showLoader) setLoading(true);
+    if (showLoader && !hasLoadedOnceRef.current) setLoading(true);
 
     const { data, error } = await supabase
       .from('devices')
@@ -32,6 +66,8 @@ const Devices = () => {
       setDevices(data || []);
     }
     setLoading(false);
+    hasLoadedOnceRef.current = true;
+    setHasLoadedOnce(true);
   }, [user]);
 
   useEffect(() => {
@@ -136,8 +172,8 @@ const Devices = () => {
             </Link>
           </div>
 
-          {loading ? (
-            <div className="theme-muted">Carregando dispositivos...</div>
+          {loading && !hasLoadedOnce && devices.length === 0 ? (
+            <DeviceListSkeleton />
           ) : devices.length > 0 ? (
             <div className="space-y-8">
               {groupDevicesByProject(devices).map((project) => (
@@ -168,7 +204,7 @@ const Devices = () => {
                 </section>
               ))}
             </div>
-          ) : (
+          ) : hasLoadedOnce ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -184,7 +220,7 @@ const Devices = () => {
                 </Button>
               </Link>
             </motion.div>
-          )}
+          ) : null}
         </div>
       </DashboardLayout>
     </>

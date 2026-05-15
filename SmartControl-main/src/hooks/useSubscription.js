@@ -48,7 +48,7 @@ export const useSubscription = () => {
     setError('');
 
     try {
-      const payload = await fetchBillingJson('/api/billing/subscription', {
+      const payload = await fetchBillingJson('/api/billing/subscription?include_plans=false', {
         token: session.access_token,
         signal,
       });
@@ -75,7 +75,10 @@ export const useSubscription = () => {
     const payload = await fetchBillingJson('/api/billing/sync', {
       token: session.access_token,
       method: 'POST',
-      body: sessionId ? { session_id: sessionId } : {},
+      body: {
+        ...(sessionId ? { session_id: sessionId } : {}),
+        include_plans: false,
+      },
     });
     setOverview(normalizeOverview(payload));
     return payload;

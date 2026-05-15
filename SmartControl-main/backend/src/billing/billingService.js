@@ -602,14 +602,18 @@ export const getDeviceUsage = async ({ supabase, userId }) => {
   return count || 0;
 };
 
-export const getBillingOverview = async ({ supabase, stripe, env = process.env, userId }) => {
+export const getBillingOverview = async ({ supabase, stripe, env = process.env, userId, includePlans = true } = {}) => {
+  const plansPromise = includePlans
+    ? listBillingPlans({ stripe, env, includeFree: true }).catch((error) => {
+        console.warn('Nao foi possivel listar planos Stripe:', error.message);
+        return [FREE_PLAN];
+      })
+    : Promise.resolve([]);
+
   const [subscription, devicesUsed, plansResult, invoicesResult] = await Promise.all([
     getActiveSubscriptionRow({ supabase, userId }),
     getDeviceUsage({ supabase, userId }),
-    listBillingPlans({ stripe, env, includeFree: true }).catch((error) => {
-      console.warn('Nao foi possivel listar planos Stripe:', error.message);
-      return [FREE_PLAN];
-    }),
+    plansPromise,
     supabase
       .from('subscription_invoices')
       .select('*')
@@ -640,7 +644,7 @@ export const getBillingOverview = async ({ supabase, stripe, env = process.env, 
     },
     permissions,
     invoices: invoicesResult.data || [],
-    plans: plansResult,
+    plans: includePlans ? plansResult : [],
   };
 };
 

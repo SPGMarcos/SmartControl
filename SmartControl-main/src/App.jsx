@@ -1,9 +1,10 @@
 import React, { Suspense } from "react";
 import { BrowserRouter as Router, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/SupabaseAuthContext";
+import { useAuth } from "@/contexts/SupabaseAuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Toaster } from "@/components/ui/toaster";
-import AppRoutes from "@/routes/routes";
+import AppRoutes, { preloadPrivateRoutes } from "@/routes/routes";
 import { getAuthParams, isAuthCallbackPath } from "@/lib/authRedirect";
 import LoadingScreen from "@/components/LoadingScreen"; // 👈 importa o loading
 
@@ -39,12 +40,34 @@ function AuthActionRedirect() {
   return null;
 }
 
+function PrivateRoutePrefetcher() {
+  const { user, session, loading } = useAuth();
+  const didPrefetchRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (didPrefetchRef.current || loading || !user || !session) return;
+    didPrefetchRef.current = true;
+
+    const prefetch = () => preloadPrivateRoutes();
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(prefetch, { timeout: 1200 });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+
+    const timeoutId = window.setTimeout(prefetch, 250);
+    return () => window.clearTimeout(timeoutId);
+  }, [loading, session, user]);
+
+  return null;
+}
+
 function App() {
   return (
     <ThemeProvider>
       <Router basename={routerBaseName}>
         <AuthProvider>
           <AuthActionRedirect />
+          <PrivateRoutePrefetcher />
           <Suspense fallback={<LoadingScreen />}>
             <AppRoutes />
           </Suspense>

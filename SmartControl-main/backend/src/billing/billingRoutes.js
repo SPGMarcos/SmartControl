@@ -152,6 +152,7 @@ export const registerBillingRoutes = (app, { stripe, supabase, env = process.env
         stripe,
         env,
         userId: user.id,
+        includePlans: req.query.include_plans !== 'false',
       });
 
       return res.json(overview);
@@ -178,6 +179,7 @@ export const registerBillingRoutes = (app, { stripe, supabase, env = process.env
         stripe,
         env,
         userId: user.id,
+        includePlans: req.body?.include_plans !== false && req.body?.includePlans !== false,
       });
 
       await logEvent?.({

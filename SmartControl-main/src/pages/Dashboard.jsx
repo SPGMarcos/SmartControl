@@ -34,6 +34,34 @@ const StatCard = ({ icon: Icon, label, value, accent = 'text-purple-400', delay 
   </motion.div>
 );
 
+const ProjectSkeletonGrid = () => (
+  <section className="space-y-4">
+    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <h2 className="theme-title text-2xl font-bold">Projetos e linhas de automacao</h2>
+        <p className="theme-muted mt-1">Carregando seus dispositivos em segundo plano.</p>
+      </div>
+    </div>
+
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div key={index} className="gradient-card mobile-card min-h-[260px] rounded-xl border border-purple-500/30 p-4 sm:p-6">
+          <div className="h-4 w-24 animate-pulse rounded bg-white/10" />
+          <div className="mt-4 h-7 w-2/3 animate-pulse rounded bg-white/10" />
+          <div className="mt-3 h-4 w-full animate-pulse rounded bg-white/10" />
+          <div className="mt-2 h-4 w-4/5 animate-pulse rounded bg-white/10" />
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="h-16 animate-pulse rounded-xl bg-white/10" />
+            <div className="h-16 animate-pulse rounded-xl bg-white/10" />
+            <div className="h-16 animate-pulse rounded-xl bg-white/10" />
+          </div>
+          <div className="mt-5 h-11 animate-pulse rounded-lg bg-white/10" />
+        </div>
+      ))}
+    </div>
+  </section>
+);
+
 const ProjectCard = ({ project, selected, onOpenDevices, onOpenOverview, index }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
@@ -324,9 +352,11 @@ const Dashboard = () => {
   const [devices, setDevices] = useState([]);
   const [sensors, setSensors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectView, setProjectView] = useState('projects');
   const optimisticDevicesRef = useRef(new Map());
+  const hasLoadedOnceRef = useRef(false);
   const { currentPlan, limits } = useSubscription();
 
   const mergeOptimisticDevices = (freshDevices = []) =>
@@ -350,7 +380,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async ({ showLoader = false } = {}) => {
       if (!user) return;
-      if (showLoader) setLoading(true);
+      if (showLoader && !hasLoadedOnceRef.current) setLoading(true);
 
       const { data: devicesData, error: devicesError } = await supabase
         .from('devices')
@@ -362,11 +392,16 @@ const Dashboard = () => {
         setDevices([]);
         setSensors([]);
         setLoading(false);
+        hasLoadedOnceRef.current = true;
+        setHasLoadedOnce(true);
         return;
       }
 
       const safeDevices = mergeOptimisticDevices(devicesData || []);
       setDevices(safeDevices);
+      setLoading(false);
+      hasLoadedOnceRef.current = true;
+      setHasLoadedOnce(true);
 
       if (safeDevices.length > 0) {
         const deviceIds = safeDevices.map((device) => device.id);
@@ -384,8 +419,6 @@ const Dashboard = () => {
       } else {
         setSensors([]);
       }
-
-      setLoading(false);
     };
 
     let refreshTimer = null;
@@ -568,14 +601,6 @@ const Dashboard = () => {
     return { ok: true, ...payload };
   };
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="text-white">Carregando...</div>
-      </DashboardLayout>
-    );
-  }
-
   return (
     <>
       <Helmet>
@@ -674,7 +699,11 @@ const Dashboard = () => {
             </>
           )}
 
-          {devices.length === 0 && !loading && (
+          {loading && !hasLoadedOnce && devices.length === 0 && projectView === 'projects' && (
+            <ProjectSkeletonGrid />
+          )}
+
+          {devices.length === 0 && hasLoadedOnce && !loading && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

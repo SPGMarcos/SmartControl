@@ -6,20 +6,48 @@ import LoadingScreen from '@/components/LoadingScreen'
 import { isSessionExpired } from '@/lib/security'
 
 // Lazy loading dos componentes
-const Home = React.lazy(() => import('@/pages/Home'))
-const Login = React.lazy(() => import('@/pages/Login'))
-const Register = React.lazy(() => import('@/pages/Register'))
-const AuthCallback = React.lazy(() => import('@/pages/AuthCallback'))
-const Dashboard = React.lazy(() => import('@/pages/Dashboard'))
-const Devices = React.lazy(() => import('@/pages/Devices'))
-const AddDevice = React.lazy(() => import('@/pages/AddDevices'))
-const DeviceDetail = React.lazy(() => import('@/pages/DeviceDetail'))
-const Shop = React.lazy(() => import('@/pages/Shop'))
-const Settings = React.lazy(() => import('@/pages/Settings'))
-const Admin = React.lazy(() => import('@/pages/Admin'))
-const Subscription = React.lazy(() => import('@/pages/Subscription'))
-const BillingCheckout = React.lazy(() => import('@/pages/BillingCheckout'))
-const BillingResult = React.lazy(() => import('@/pages/BillingResult'))
+const loadHome = () => import('@/pages/Home')
+const loadLogin = () => import('@/pages/Login')
+const loadRegister = () => import('@/pages/Register')
+const loadAuthCallback = () => import('@/pages/AuthCallback')
+const loadDashboard = () => import('@/pages/Dashboard')
+const loadDevices = () => import('@/pages/Devices')
+const loadAddDevice = () => import('@/pages/AddDevices')
+const loadDeviceDetail = () => import('@/pages/DeviceDetail')
+const loadShop = () => import('@/pages/Shop')
+const loadSettings = () => import('@/pages/Settings')
+const loadAdmin = () => import('@/pages/Admin')
+const loadSubscription = () => import('@/pages/Subscription')
+const loadBillingCheckout = () => import('@/pages/BillingCheckout')
+const loadBillingResult = () => import('@/pages/BillingResult')
+
+const Home = React.lazy(loadHome)
+const Login = React.lazy(loadLogin)
+const Register = React.lazy(loadRegister)
+const AuthCallback = React.lazy(loadAuthCallback)
+const Dashboard = React.lazy(loadDashboard)
+const Devices = React.lazy(loadDevices)
+const AddDevice = React.lazy(loadAddDevice)
+const DeviceDetail = React.lazy(loadDeviceDetail)
+const Shop = React.lazy(loadShop)
+const Settings = React.lazy(loadSettings)
+const Admin = React.lazy(loadAdmin)
+const Subscription = React.lazy(loadSubscription)
+const BillingCheckout = React.lazy(loadBillingCheckout)
+const BillingResult = React.lazy(loadBillingResult)
+
+export const preloadPrivateRoutes = () => {
+  [
+    loadDashboard,
+    loadDevices,
+    loadDeviceDetail,
+    loadAddDevice,
+  ].forEach((loadRoute) => {
+    loadRoute().catch((error) => {
+      console.warn('Nao foi possivel pre-carregar rota privada:', error.message)
+    })
+  })
+}
 
 
 // Componentes de Rota Protegida

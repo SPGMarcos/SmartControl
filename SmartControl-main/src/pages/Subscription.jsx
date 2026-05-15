@@ -244,7 +244,7 @@ const Subscription = () => {
             </div>
             <PlanCards
               plans={availablePlans}
-              loading={plansLoading || loading}
+              loading={plansLoading && availablePlans.length === 0}
               error={plansError}
               onSelect={handlePlanSelect}
               busyPriceId={busyPriceId}
