@@ -357,7 +357,8 @@ const Dashboard = () => {
   const [projectView, setProjectView] = useState('projects');
   const optimisticDevicesRef = useRef(new Map());
   const hasLoadedOnceRef = useRef(false);
-  const { currentPlan, limits } = useSubscription();
+  const { currentPlan, limits, hasLoadedOnce: hasLoadedSubscription } = useSubscription();
+  const isSubscriptionPending = !hasLoadedSubscription;
 
   const mergeOptimisticDevices = (freshDevices = []) =>
     freshDevices.map((device) => {
@@ -626,13 +627,15 @@ const Dashboard = () => {
                   <Link to="/subscription" className="w-full sm:w-auto">
                     <Button variant="outline" className="w-full border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white sm:w-auto">
                       <CreditCard className="w-4 h-4 mr-2" />
-                      {currentPlan.name}
+                      {isSubscriptionPending ? (
+                        <span className="inline-block h-4 w-32 animate-pulse rounded bg-white/10" />
+                      ) : currentPlan.name}
                     </Button>
                   </Link>
-                  <Link to={limits.can_add_device ? '/add-device' : '/subscription'} className="w-full sm:w-auto">
+                  <Link to={!isSubscriptionPending && limits.can_add_device ? '/add-device' : '/subscription'} className="w-full sm:w-auto">
                     <Button className="w-full sm:w-auto">
                       <Plus className="w-4 h-4 mr-2" />
-                      {limits.can_add_device ? 'Novo dispositivo' : 'Fazer upgrade'}
+                      {isSubscriptionPending ? 'Carregando plano' : limits.can_add_device ? 'Novo dispositivo' : 'Fazer upgrade'}
                     </Button>
                   </Link>
                 </div>
@@ -641,10 +644,10 @@ const Dashboard = () => {
               <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-6 lg:grid-cols-4">
                 <StatCard icon={Zap} label="Dispositivos Ativos" value={devices.filter((device) => device.status).length} />
                 <StatCard icon={Activity} label="Total de Dispositivos" value={devices.length} accent="text-green-400" delay={0.1} />
-                <StatCard icon={Layers} label="Uso do Plano" value={`${limits.devices_used}/${limits.device_limit}`} accent="text-purple-300" delay={0.2} />
+                <StatCard icon={Layers} label="Uso do Plano" value={isSubscriptionPending ? '...' : `${limits.devices_used}/${limits.device_limit}`} accent="text-purple-300" delay={0.2} />
                 <StatCard icon={Wifi} label="Online" value={onlineDevices} accent="text-blue-300" delay={0.3} />
               </div>
-              {!limits.can_add_device && (
+              {!isSubscriptionPending && !limits.can_add_device && (
                 <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
                   Limite de dispositivos do plano atual atingido. A dashboard continua operando, mas novos dispositivos exigem upgrade em Minha Assinatura.
                 </div>
