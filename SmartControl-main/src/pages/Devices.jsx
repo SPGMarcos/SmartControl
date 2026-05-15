@@ -50,7 +50,7 @@ const Devices = () => {
 
     const polling = window.setInterval(() => {
       fetchDevices();
-    }, 3000);
+    }, 60000);
 
     const deviceSub = supabase.channel('devices-page')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'devices', filter: `user_id=eq.${user?.id}` }, () => {

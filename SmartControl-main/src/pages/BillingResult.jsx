@@ -9,13 +9,19 @@ import { useSubscription } from '@/hooks/useSubscription';
 const BillingResult = () => {
   const location = useLocation();
   const isSuccess = location.pathname.includes('/success');
+  const searchParams = new URLSearchParams(location.search);
+  const isSubscriptionUpdate = searchParams.get('subscription_updated') === 'true';
   const { refresh, sync } = useSubscription();
 
   useEffect(() => {
     if (!isSuccess) return undefined;
 
     const sessionId = new URLSearchParams(location.search).get('session_id');
-    sync({ sessionId }).catch(() => refresh());
+    if (sessionId) {
+      sync({ sessionId }).catch(() => refresh());
+    } else {
+      refresh();
+    }
     const timers = [800, 2200, 5000].map((delay) => window.setTimeout(refresh, delay));
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [isSuccess, location.search, refresh, sync]);
@@ -34,10 +40,12 @@ const BillingResult = () => {
           <div className="theme-card mobile-card w-full rounded-2xl p-6 text-center sm:p-8">
             <Icon className={`mx-auto h-12 w-12 ${isSuccess ? 'text-green-400' : 'text-amber-300'}`} />
             <h1 className="theme-title mt-5 text-2xl font-bold">
-              {isSuccess ? 'Assinatura em sincronizacao' : 'Checkout cancelado'}
+              {isSuccess ? (isSubscriptionUpdate ? 'Plano atualizado' : 'Assinatura em sincronizacao') : 'Checkout cancelado'}
             </h1>
             <p className="theme-muted mt-3 leading-7">
-              {isSuccess
+              {isSuccess && isSubscriptionUpdate
+                ? 'A troca de plano foi enviada ao Stripe. A tela de assinatura sera atualizada com os dados sincronizados.'
+                : isSuccess
                 ? 'O Stripe confirmou o checkout. Assim que o webhook concluir, sua dashboard recebe o plano atualizado automaticamente.'
                 : 'Nenhuma cobranca foi concluida. Voce pode escolher outro plano quando quiser.'}
             </p>

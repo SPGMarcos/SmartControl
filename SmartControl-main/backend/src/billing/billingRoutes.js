@@ -262,6 +262,7 @@ export const registerBillingRoutes = (app, { stripe, supabase, env = process.env
       console.error('Erro ao abrir portal Stripe:', error);
       return res.status(error.statusCode || 400).json({
         error: error.message || 'Nao foi possivel abrir o portal de assinatura.',
+        code: error.code || 'billing_portal_failed',
       });
     }
   });

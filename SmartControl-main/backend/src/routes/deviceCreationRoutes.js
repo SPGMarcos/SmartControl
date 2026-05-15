@@ -9,6 +9,38 @@ const sanitizeText = (value = '', maxLength = 160) =>
     .trim()
     .slice(0, maxLength);
 
+const normalizeTopicPart = (value = '') =>
+  value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\-_]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const buildProvisioningConfig = ({ env, userId, deviceId, projectName, token }) => {
+  const topicRoot = `smartcontrol/${normalizeTopicPart(userId)}/${normalizeTopicPart(projectName || 'default')}/${normalizeTopicPart(deviceId)}`;
+
+  return {
+    protocol: 'smartcontrol.mqtt.v1',
+    broker_url: env.MQTT_DEVICE_URL || env.MQTT_URL || null,
+    username: env.MQTT_DEVICE_USERNAME || env.MQTT_USERNAME || null,
+    topic_root: topicRoot,
+    topics: {
+      command: `${topicRoot}/cmd`,
+      status: `${topicRoot}/status`,
+      telemetry: `${topicRoot}/telemetry`,
+      config: `${topicRoot}/config`,
+      heartbeat: `${topicRoot}/heartbeat`,
+      ack: `${topicRoot}/ack`,
+      availability: `${topicRoot}/availability`,
+    },
+    device_token: token,
+    heartbeat_interval_ms: Number(env.DEVICE_HEARTBEAT_INTERVAL_MS) || 30000,
+  };
+};
+
 const buildFallbackDevicePayload = (payload) => ({
   user_id: payload.user_id,
   name: payload.name,
@@ -53,6 +85,16 @@ export const registerDeviceCreationRoutes = (app, {
         userId: requestUser.id,
       });
 
+      const provisionedDeviceId = sanitizeText(body.device_id || body.deviceId || '', 100) || `sc-${randomUUID()}`;
+      const provisionedToken = sanitizeText(body.device_token || body.deviceToken || '', 160) || randomUUID();
+      const provisioning = buildProvisioningConfig({
+        env,
+        userId: requestUser.id,
+        deviceId: provisionedDeviceId,
+        projectName: body.project_name || body.projectName || '',
+        token: provisionedToken,
+      });
+
       const payload = {
         ...body,
         user_id: requestUser.id,
@@ -62,20 +104,29 @@ export const registerDeviceCreationRoutes = (app, {
         project_type: sanitizeText(body.project_type || body.projectType || '', 60) || null,
         device_model: sanitizeText(body.device_model || body.deviceModel || '', 80) || null,
         protocol: sanitizeText(body.protocol || 'mqtt', 40) || 'mqtt',
-        device_id: sanitizeText(body.device_id || body.deviceId || '', 100) || null,
+        device_id: provisionedDeviceId,
         mac_address: sanitizeText(body.mac_address || body.macAddress || '', 60) || null,
         firmware_version: sanitizeText(body.firmware_version || body.firmwareVersion || '', 60) || null,
         hardware_version: sanitizeText(body.hardware_version || body.hardwareVersion || '', 80) || null,
-        mqtt_broker: sanitizeText(body.mqtt_broker || body.mqttBroker || '', 160) || null,
-        mqtt_topic: sanitizeText(body.mqtt_topic || body.mqttTopic || '', 180) || null,
-        device_token: sanitizeText(body.device_token || body.deviceToken || '', 160) || null,
+        mqtt_broker: sanitizeText(body.mqtt_broker || body.mqttBroker || '', 160) || provisioning.broker_url,
+        mqtt_topic: sanitizeText(body.mqtt_topic || body.mqttTopic || '', 180) || provisioning.topic_root,
+        device_token: provisionedToken,
         local_ip: sanitizeText(body.local_ip || body.localIp || '', 80) || null,
         mdns_hostname: sanitizeText(body.mdns_hostname || body.mdnsHostname || '', 120) || null,
         connection_status: sanitizeText(body.connection_status || 'offline', 40) || 'offline',
-        pairing_status: sanitizeText(body.pairing_status || 'manual', 40) || 'manual',
+        pairing_status: sanitizeText(body.pairing_status || 'provisioned', 40) || 'provisioned',
         module_type: sanitizeText(body.module_type || body.moduleType || 'generic_iot', 80) || 'generic_iot',
         capabilities: body.capabilities || {},
-        configuration: body.configuration || {},
+        configuration: {
+          ...(body.configuration || {}),
+          provisioning,
+          integration_model: {
+            device: true,
+            entities: [],
+            capabilities: body.capabilities || {},
+            integrations: ['mqtt_discovery', 'rest', 'webhook', 'home_assistant', 'esphome', 'tuya', 'alexa', 'onvif', 'rtsp'],
+          },
+        },
         last_state: body.last_state || {},
         telemetry: body.telemetry || {},
       };
@@ -133,3 +184,4 @@ export const registerDeviceCreationRoutes = (app, {
     }
   });
 };
+import { randomUUID } from 'node:crypto';

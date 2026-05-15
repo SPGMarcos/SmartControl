@@ -24,8 +24,8 @@ const Navbar = () => {
           </Link>
 
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-4">
-            <MarketplaceModal />
             <ThemeToggle />
+            <MarketplaceModal />
             {user ? (
               <Link to="/dashboard" className="shrink-0">
                 <Button className="h-9 px-3 bg-purple-600 hover:bg-purple-700 text-sm sm:h-10 sm:px-4">

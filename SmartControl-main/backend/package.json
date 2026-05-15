@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon index.js --watch . --ext js,json",
-    "start": "node index.js"
+    "start": "node index.js",
+    "stripe:provision-plans": "node scripts/provision-stripe-plans.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.79.0",

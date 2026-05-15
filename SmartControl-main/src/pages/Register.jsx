@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import ThemeToggle from '@/components/ThemeToggle';
-import { UserPlus } from 'lucide-react';
+import { MailCheck, RefreshCw, UserPlus } from 'lucide-react';
 import { normalizeEmail, sanitizeText, validateDisplayName, validateEmail, validatePassword } from '@/lib/security';
 import { getSafeRedirectPath } from '@/lib/billing';
 
@@ -19,10 +19,25 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [formError, setFormError] = useState('');
-  const { signUp } = useAuth();
-  const navigate = useNavigate();
+  const [confirmationEmail, setConfirmationEmail] = useState('');
+  const { signUp, resendConfirmationEmail } = useAuth();
   const location = useLocation();
+  const registerParams = new URLSearchParams(location.search);
+  const planPriceId = registerParams.get('plan') || registerParams.get('price_id');
+  const loginRedirect = getSafeRedirectPath(
+    registerParams.get('redirect') || (planPriceId ? `/billing/checkout?price_id=${encodeURIComponent(planPriceId)}` : ''),
+    '/dashboard',
+  );
+  const loginPath = `/login?redirect=${encodeURIComponent(loginRedirect)}`;
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return undefined;
+    const timer = window.setTimeout(() => setResendCooldown((value) => Math.max(value - 1, 0)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [resendCooldown]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,13 +69,20 @@ const Register = () => {
     setLoading(false);
 
     if (!error) {
-      const params = new URLSearchParams(location.search);
-      const planPriceId = params.get('plan') || params.get('price_id');
-      const redirect = getSafeRedirectPath(
-        params.get('redirect') || (planPriceId ? `/billing/checkout?price_id=${encodeURIComponent(planPriceId)}` : ''),
-        '/dashboard',
-      );
-      navigate(`/login?redirect=${encodeURIComponent(redirect)}`);
+      setConfirmationEmail(normalizedEmail);
+      setResendCooldown(60);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!confirmationEmail || resendCooldown > 0 || resendLoading) return;
+
+    setResendLoading(true);
+    const { error } = await resendConfirmationEmail(confirmationEmail);
+    setResendLoading(false);
+
+    if (!error) {
+      setResendCooldown(60);
     }
   };
 
@@ -88,6 +110,31 @@ const Register = () => {
               <p className="auth-muted">Crie sua conta</p>
             </div>
 
+            {confirmationEmail ? (
+              <div className="auth-alert-success rounded-2xl p-5 text-center">
+                <MailCheck className="mx-auto h-10 w-10" />
+                <h2 className="mt-4 text-xl font-bold">Enviamos um e-mail de confirmação.</h2>
+                <p className="mt-3 text-sm leading-6">
+                  Verifique sua caixa de entrada e spam para confirmar a conta {confirmationEmail}.
+                  Depois disso, entre normalmente na plataforma.
+                </p>
+                <Link to={loginPath} className="mt-5 inline-flex w-full sm:w-auto">
+                  <Button className="w-full sm:w-auto">
+                    Ir para login
+                  </Button>
+                </Link>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-3 w-full sm:w-auto"
+                  disabled={resendLoading || resendCooldown > 0}
+                  onClick={handleResendConfirmation}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${resendLoading ? 'animate-spin' : ''}`} />
+                  {resendCooldown > 0 ? `Reenviar em ${resendCooldown}s` : 'Reenviar e-mail'}
+                </Button>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <Label htmlFor="name" className="auth-label">Nome</Label>
@@ -176,11 +223,12 @@ const Register = () => {
                 {loading ? 'Criando conta...' : 'Criar Conta'}
               </Button>
             </form>
+            )}
 
             <div className="mt-6 text-center">
               <p className="auth-muted">
                 Já tem uma conta?{' '}
-                <Link to="/login" className="auth-link font-medium">
+                <Link to={loginPath} className="auth-link font-medium">
                   Faça login
                 </Link>
               </p>

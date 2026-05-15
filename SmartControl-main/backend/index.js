@@ -152,8 +152,10 @@ const isAllowedCorsOrigin = (origin, allowed = []) => {
 const discoveredDevices = new Map();
 const DISCOVERY_TIMEOUT = 24 * 60 * 60 * 1000; // 24 horas
 const realtimeClients = new Set();
+const realtimeQueue = new Map();
+let realtimeFlushTimer = null;
 
-const sendRealtimeEvent = (event) => {
+const writeRealtimeEvent = (event) => {
   const payload = `event: ${event.type || 'message'}\ndata: ${JSON.stringify(event)}\n\n`;
 
   realtimeClients.forEach((client) => {
@@ -163,6 +165,31 @@ const sendRealtimeEvent = (event) => {
       realtimeClients.delete(client);
     }
   });
+};
+
+const getRealtimeCoalesceKey = (event = {}) => {
+  if (event.type === 'device_state' && event.device_id) return `device_state:${event.device_id}`;
+  if (event.type === 'command_ack' && event.request_id) return `command_ack:${event.request_id}`;
+  if (event.type === 'mqtt_status') return 'mqtt_status';
+  return `${event.type || 'message'}:${event.device_id || event.external_device_id || event.updated_at || randomUUID()}`;
+};
+
+const sendRealtimeEvent = (event) => {
+  if (!event) return;
+  const eventWithTime = {
+    ...event,
+    updated_at: event.updated_at || new Date().toISOString(),
+  };
+
+  realtimeQueue.set(getRealtimeCoalesceKey(eventWithTime), eventWithTime);
+  if (realtimeFlushTimer) return;
+
+  realtimeFlushTimer = setTimeout(() => {
+    realtimeFlushTimer = null;
+    const events = Array.from(realtimeQueue.values());
+    realtimeQueue.clear();
+    events.forEach(writeRealtimeEvent);
+  }, 50);
 };
 
 const mqttClient = mqtt.connect(MQTT_URL, {
@@ -330,6 +357,38 @@ const logEvent = async ({ deviceId = null, userId = null, type, payload }) => {
   if (fallback.error) {
     console.warn('Nao foi possivel gravar log:', fallback.error.message);
   }
+};
+
+const insertPresenceEvent = async ({ device, eventType, reason, startedAt, metadata = {} }) => {
+  if (!device?.id || !device?.user_id) return null;
+
+  const since = new Date(new Date(startedAt).getTime() - 1000).toISOString();
+  const { data: recentEvent } = await supabase
+    .from('device_presence_events')
+    .select('id,event_type,started_at')
+    .eq('device_id', device.id)
+    .eq('event_type', eventType)
+    .gte('started_at', since)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recentEvent) return recentEvent;
+
+  const { data, error } = await supabase.from('device_presence_events').insert([{
+    device_id: device.id,
+    user_id: device.user_id,
+    event_type: eventType,
+    reason,
+    started_at: startedAt,
+    metadata,
+  }]).select('id').maybeSingle();
+
+  if (error && !shouldRetryWithoutNewColumns(error)) {
+    console.warn('Nao foi possivel gravar evento de presenca:', error.message);
+  }
+
+  return data || null;
 };
 
 const safeUpdateDevice = async (deviceId, payload) => {
@@ -589,22 +648,17 @@ const handleMqttMessage = async (topic, message) => {
   if (presenceUpdate.presence.isPresenceEvent) {
     const wasOnline = device.online === true || String(device.connection_status || '').toLowerCase() === 'online';
     if (wasOnline !== presenceUpdate.presence.online) {
-      const presenceEvent = await supabase.from('device_presence_events').insert([{
-        device_id: device.id,
-        user_id: device.user_id,
-        event_type: presenceUpdate.presence.online ? 'online' : 'offline',
+      await insertPresenceEvent({
+        device,
+        eventType: presenceUpdate.presence.online && wasOnline === false ? 'reconnect' : (presenceUpdate.presence.online ? 'online' : 'offline'),
         reason: presenceUpdate.presence.offlineReason || presenceUpdate.presence.source,
-        started_at: now,
+        startedAt: now,
         metadata: {
           topic,
           source: presenceUpdate.presence.source,
           payload,
         },
-      }]);
-
-      if (presenceEvent.error && !shouldRetryWithoutNewColumns(presenceEvent.error)) {
-        console.warn('Nao foi possivel gravar evento de presenca:', presenceEvent.error.message);
-      }
+      });
     }
   }
 
@@ -711,8 +765,6 @@ const markStaleDevicesOffline = async () => {
     .from('devices')
     .select('id,user_id,device_id,name,last_heartbeat,last_state,telemetry')
     .or('connection_status.eq.online,online.eq.true')
-    .not('last_heartbeat', 'is', null)
-    .lt('last_heartbeat', cutoff)
     .limit(200);
 
   if (error) {
@@ -721,14 +773,13 @@ const markStaleDevicesOffline = async () => {
   }
 
   await Promise.all((data || []).map(async (device) => {
-    if (!isHeartbeatStale(device.last_heartbeat, deviceHeartbeatTimeoutMs)) return;
+    if (device.last_heartbeat && !isHeartbeatStale(device.last_heartbeat, deviceHeartbeatTimeoutMs)) return;
 
     const offlinePatch = {
       online: false,
       connection_status: 'offline',
       offline_reason: 'heartbeat_timeout',
       presence_source: 'heartbeat_sweep',
-      last_seen_at: now,
       last_offline_at: now,
     };
 
@@ -749,29 +800,26 @@ const markStaleDevicesOffline = async () => {
     await logEvent({
       deviceId: device.id,
       userId: device.user_id,
-      type: 'device_offline_timeout',
+      type: device.last_heartbeat ? 'device_offline_timeout' : 'device_offline_without_heartbeat',
       payload: {
-        reason: 'heartbeat_timeout',
+        reason: device.last_heartbeat ? 'heartbeat_timeout' : 'missing_heartbeat',
         last_heartbeat: device.last_heartbeat,
         timeout_ms: deviceHeartbeatTimeoutMs,
         detected_at: now,
       },
     });
 
-    const presenceEvent = await supabase.from('device_presence_events').insert([{
-      device_id: device.id,
-      user_id: device.user_id,
-      event_type: 'offline',
-      reason: 'heartbeat_timeout',
-      started_at: now,
-      metadata: {
-        last_heartbeat: device.last_heartbeat,
-        timeout_ms: deviceHeartbeatTimeoutMs,
-      },
-    }]);
-
-    if (presenceEvent.error && !shouldRetryWithoutNewColumns(presenceEvent.error)) {
-      console.warn('Nao foi possivel gravar evento de presenca:', presenceEvent.error.message);
+    if (device.last_heartbeat) {
+      await insertPresenceEvent({
+        device,
+        eventType: 'timeout',
+        reason: 'heartbeat_timeout',
+        startedAt: now,
+        metadata: {
+          last_heartbeat: device.last_heartbeat,
+          timeout_ms: deviceHeartbeatTimeoutMs,
+        },
+      });
     }
 
     sendRealtimeEvent({
@@ -779,7 +827,7 @@ const markStaleDevicesOffline = async () => {
       device_id: device.id,
       external_device_id: device.device_id,
       user_id: device.user_id,
-      event_type: 'heartbeat_timeout',
+      event_type: 'timeout',
       updated_at: now,
     });
   }));
@@ -866,6 +914,13 @@ setInterval(() => {
     console.warn('Erro ao expirar comandos pendentes:', error.message);
   });
 }, deviceHeartbeatSweepIntervalMs);
+
+markStaleDevicesOffline().catch((error) => {
+  console.warn('Erro ao marcar dispositivos offline na inicializacao:', error.message);
+});
+markTimedOutPendingCommands().catch((error) => {
+  console.warn('Erro ao expirar comandos pendentes na inicializacao:', error.message);
+});
 
 const validateHydroponicsCommand = ({ command, payload }) => {
   switch (command) {
@@ -1576,6 +1631,7 @@ app.get('/api/device-classes', (req, res) => {
 app.get('/api/integrations', (req, res) => {
   return res.json({
     providers: integrationManager.listProviders(),
+    model: integrationManager.getUniversalModel(),
   });
 });
 

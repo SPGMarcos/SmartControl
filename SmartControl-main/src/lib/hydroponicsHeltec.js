@@ -1,4 +1,5 @@
 import { buildMqttTopics } from '@/lib/mqttTopics';
+import { isDeviceOnline } from '@/lib/deviceProjects';
 
 export const HYDROPONICS_MODULE_TYPE = 'heltec_esp32_lora_hydroponics';
 export const HYDROPONICS_ESP32_MODULE_TYPE = 'esp32_devkit_hydroponics';
@@ -105,7 +106,7 @@ export const normalizeHydroponicsState = (device = {}) => {
 
   return {
     moduleType: device.module_type || device.module || device.device_model || HYDROPONICS_ESP32_MODULE_TYPE,
-    online: toBoolean(device.connection_status, false) || toBoolean(state.online, false),
+    online: isDeviceOnline(device),
     t24: toBoolean(state.t24 ?? state.automatic ?? state.auto ?? state.mode?.automatic, false),
     v1: toBoolean(state.v1 ?? relays.pump ?? state.pump, Boolean(device.status)),
     v2: toBoolean(state.v2 ?? relays.oxygenator ?? state.oxygenator, true),
@@ -122,7 +123,7 @@ export const normalizeHydroponicsState = (device = {}) => {
       HYDROPONICS_DEFAULT_FIRMWARE,
     hardwareVersion: state.modelo || state.model || state.hardware || state.hardware_version || device.hardware_version || 'ESP32',
     capabilities: capabilities?.relays ? capabilities : HYDROPONICS_CAPABILITIES,
-    lastSeen: device.last_heartbeat || state.last_seen || device.updated_at || device.created_at,
+    lastSeen: device.last_heartbeat || state.last_seen || null,
     updatedAt: device.updated_at || state.updated_at || device.last_heartbeat || device.created_at,
     lastAck: state.last_ack || telemetry.last_ack || lastState.last_ack || null,
     pendingCommand: state.pending_command || telemetry.pending_command || lastState.pending_command || null,

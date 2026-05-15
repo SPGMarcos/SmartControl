@@ -1,6 +1,6 @@
 import { getAvailabilityState } from '../protocols/smartcontrolProtocol.js';
 
-const PRESENCE_EVENT_TYPES = new Set(['status', 'telemetry', 'heartbeat', 'ack', 'availability']);
+const PRESENCE_EVENT_TYPES = new Set(['heartbeat', 'availability', 'ws_heartbeat']);
 const STATE_REPLACEMENT_EVENT_TYPES = new Set(['status', 'telemetry', 'heartbeat']);
 const COMMAND_METADATA_KEYS = [
   'last_ack',
@@ -65,7 +65,9 @@ const buildAckPatch = ({ payload = {}, previousLastState = {}, previousTelemetry
 
 export const resolvePresence = ({ eventType, payload = {} }) => {
   const availabilityState = getAvailabilityState(eventType, payload);
-  const isPresenceEvent = PRESENCE_EVENT_TYPES.has(eventType) || availabilityState !== null;
+  const isExplicitAvailability = eventType === 'availability' && availabilityState !== null;
+  const isHeartbeat = PRESENCE_EVENT_TYPES.has(eventType) && availabilityState !== false;
+  const isPresenceEvent = isExplicitAvailability || isHeartbeat;
 
   if (!isPresenceEvent) {
     return {
@@ -77,13 +79,13 @@ export const resolvePresence = ({ eventType, payload = {} }) => {
     };
   }
 
-  const online = availabilityState === false ? false : true;
+  const online = isExplicitAvailability ? availabilityState !== false : true;
 
   return {
     isPresenceEvent: true,
     online,
     source: eventType,
-    offlineReason: online ? null : payload.reason || payload.offline_reason || 'mqtt_lwt',
+    offlineReason: online ? null : payload.reason || payload.offline_reason || 'device_unavailable',
     refreshHeartbeat: online,
   };
 };
@@ -107,13 +109,13 @@ export const buildPresenceUpdate = ({
   const basePresence = {
     online: presence.online,
     connection_status: presence.online ? 'online' : 'offline',
-    last_seen: now,
-    last_seen_at: now,
     presence_source: presence.source,
     offline_reason: presence.offlineReason,
   };
 
   if (presence.online) {
+    basePresence.last_seen = now;
+    basePresence.last_seen_at = now;
     basePresence.last_online_at = now;
     basePresence.last_heartbeat_at = now;
   } else {

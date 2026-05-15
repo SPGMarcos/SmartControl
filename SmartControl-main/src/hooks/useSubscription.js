@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
-import { FREE_PLAN, fetchBillingJson } from '@/lib/billing';
+import { FREE_PLAN, dedupeBillingPlans, fetchBillingJson } from '@/lib/billing';
 
 const buildFallbackOverview = () => ({
   subscription: null,
@@ -23,8 +23,22 @@ export const useSubscription = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const syncedOnLoginRef = useRef('');
+  const requestSeqRef = useRef(0);
+  const refreshTimersRef = useRef([]);
 
-  const refresh = useCallback(async () => {
+  const normalizeOverview = useCallback((payload = {}) => ({
+    ...buildFallbackOverview(),
+    ...payload,
+    plans: dedupeBillingPlans(payload.plans || [], {
+      includeFree: true,
+      source: 'useSubscription',
+    }),
+  }), []);
+
+  const refresh = useCallback(async ({ signal } = {}) => {
+    const requestSeq = requestSeqRef.current + 1;
+    requestSeqRef.current = requestSeq;
+
     if (!session?.access_token || !user?.id) {
       setOverview(buildFallbackOverview());
       setLoading(false);
@@ -36,38 +50,42 @@ export const useSubscription = () => {
     try {
       const payload = await fetchBillingJson('/api/billing/subscription', {
         token: session.access_token,
+        signal,
       });
-      setOverview({
-        ...buildFallbackOverview(),
-        ...payload,
-      });
+      if (signal?.aborted || requestSeq !== requestSeqRef.current) return;
+      setOverview(normalizeOverview(payload));
     } catch (requestError) {
+      if (requestError.name === 'AbortError') return;
+      if (requestSeq !== requestSeqRef.current) return;
+
       setError(requestError.message || 'Nao foi possivel carregar a assinatura.');
       setOverview((current) => current || buildFallbackOverview());
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && requestSeq === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
-  }, [session?.access_token, user?.id]);
+  }, [normalizeOverview, session?.access_token, user?.id]);
 
   const sync = useCallback(async ({ sessionId } = {}) => {
     if (!session?.access_token || !user?.id) return buildFallbackOverview();
 
+    requestSeqRef.current += 1;
     setError('');
     const payload = await fetchBillingJson('/api/billing/sync', {
       token: session.access_token,
       method: 'POST',
       body: sessionId ? { session_id: sessionId } : {},
     });
-    setOverview({
-      ...buildFallbackOverview(),
-      ...payload,
-    });
+    setOverview(normalizeOverview(payload));
     return payload;
-  }, [session?.access_token, user?.id]);
+  }, [normalizeOverview, session?.access_token, user?.id]);
 
   useEffect(() => {
     setLoading(true);
-    refresh();
+    const controller = new AbortController();
+    refresh({ signal: controller.signal });
+    return () => controller.abort();
   }, [refresh]);
 
   useEffect(() => {
@@ -85,7 +103,13 @@ export const useSubscription = () => {
   useEffect(() => {
     if (!user?.id) return undefined;
 
-    const refreshSoon = () => window.setTimeout(refresh, 120);
+    const refreshSoon = () => {
+      const timeoutId = window.setTimeout(() => {
+        refreshTimersRef.current = refreshTimersRef.current.filter((item) => item !== timeoutId);
+        refresh();
+      }, 120);
+      refreshTimersRef.current.push(timeoutId);
+    };
     const subscriptionChannel = supabase
       .channel(`billing-subscriptions:${user.id}`)
       .on('postgres_changes', {
@@ -103,6 +127,8 @@ export const useSubscription = () => {
       .subscribe();
 
     return () => {
+      refreshTimersRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      refreshTimersRef.current = [];
       supabase.removeChannel(subscriptionChannel);
     };
   }, [refresh, user?.id]);

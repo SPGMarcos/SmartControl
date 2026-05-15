@@ -12,6 +12,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import {
   buildCheckoutPayload,
   buildPortalPayload,
+  dedupeBillingPlans,
   fetchBillingJson,
   formatBillingAmount,
   formatBillingDate,
@@ -40,6 +41,7 @@ const Subscription = () => {
     limits,
     permissions,
     invoices,
+    plans: subscriptionPlans,
     loading,
     error,
     refresh,
@@ -48,8 +50,18 @@ const Subscription = () => {
   const [portalLoading, setPortalLoading] = useState(false);
 
   const availablePlans = useMemo(
-    () => plans.filter((plan) => plan.key !== 'free' || currentPlan.key === 'free'),
-    [currentPlan.key, plans],
+    () => {
+      const sourcePlans = plans.length > 0
+        ? [...plans, ...subscriptionPlans]
+        : subscriptionPlans;
+
+      return dedupeBillingPlans(sourcePlans, {
+        includeFree: currentPlan.key === 'free',
+        source: 'Subscription.availablePlans',
+      })
+        .filter((plan) => plan.key !== 'free' || currentPlan.key === 'free');
+    },
+    [currentPlan.key, plans, subscriptionPlans],
   );
 
   const handlePlanSelect = async (plan) => {
@@ -68,6 +80,21 @@ const Subscription = () => {
         method: 'POST',
         body: buildCheckoutPayload(plan.stripe_price_id),
       });
+
+      if (payload.mode === 'subscription_update') {
+        toast({
+          title: 'Plano atualizado',
+          description: 'Sua assinatura foi atualizada no Stripe e sera sincronizada automaticamente.',
+        });
+        refresh();
+        refreshPlans();
+        setBusyPriceId('');
+        return;
+      }
+
+      if (!payload.url) {
+        throw new Error('O Stripe nao retornou uma URL valida para continuar.');
+      }
 
       window.location.assign(payload.url);
     } catch (requestError) {
@@ -88,6 +115,9 @@ const Subscription = () => {
         method: 'POST',
         body: buildPortalPayload(),
       });
+      if (!payload.url) {
+        throw new Error('O Stripe nao retornou uma URL valida para o portal.');
+      }
       window.location.assign(payload.url);
     } catch (requestError) {
       toast({
@@ -139,8 +169,8 @@ const Subscription = () => {
           </div>
 
           {(error || plansError) && (
-            <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-              {error || plansError}
+            <div className="rounded-2xl border border-amber-400/40 bg-amber-500/15 p-4 text-sm font-medium text-amber-100">
+              Nao foi possivel sincronizar os dados de assinatura agora. Detalhe: {error || plansError}
             </div>
           )}
 
@@ -150,7 +180,7 @@ const Subscription = () => {
             className="theme-card mobile-card rounded-2xl p-4 sm:p-6"
           >
             <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-2xl border border-purple-500/20 bg-black/25 p-5">
+              <div className="theme-panel rounded-2xl p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <span className="theme-readable-pill inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm">
@@ -158,10 +188,10 @@ const Subscription = () => {
                       {subscription?.status || 'free'}
                     </span>
                     <h2 className="theme-title mt-4 text-3xl font-bold">{currentPlan.name}</h2>
-                    <p className="theme-muted mt-2 leading-7">{currentPlan.description}</p>
+                    <p className="theme-muted mt-2 max-w-2xl leading-7">{currentPlan.description}</p>
                   </div>
-                  <div className="rounded-2xl border border-purple-400/20 bg-purple-500/10 px-4 py-3 text-right">
-                    <p className="text-sm text-purple-100">Valor</p>
+                  <div className="rounded-2xl border border-purple-400/30 bg-purple-500/10 px-4 py-3 text-right">
+                    <p className="text-sm font-semibold text-purple-100">Valor</p>
                     <p className="text-2xl font-bold text-white">
                       {formatPlanPrice(currentPlan)}
                       {!currentPlan.is_free && <span className="ml-1 text-sm text-gray-300">{getIntervalLabel(currentPlan)}</span>}
@@ -171,7 +201,7 @@ const Subscription = () => {
 
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   {(currentPlan.features || []).map((feature) => (
-                    <div key={feature} className="flex items-start gap-3 rounded-xl bg-black/25 p-3 text-sm text-gray-300">
+                    <div key={feature} className="flex items-start gap-3 rounded-xl border border-purple-500/10 bg-black/25 p-3 text-sm font-medium text-gray-300">
                       <ShieldCheck className="mt-0.5 h-4 w-4 flex-none text-purple-300" />
                       <span>{feature}</span>
                     </div>

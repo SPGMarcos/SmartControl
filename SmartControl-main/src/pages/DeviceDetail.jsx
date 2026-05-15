@@ -43,7 +43,6 @@ const DeviceDetail = () => {
   const [loading, setLoading] = useState(true);
   const [command, setCommand] = useState('request_status');
   const [sending, setSending] = useState(false);
-  const [editingConnection, setEditingConnection] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState('');
   const [connectionData, setConnectionData] = useState({
@@ -138,7 +137,7 @@ const DeviceDetail = () => {
 
     const polling = window.setInterval(() => {
       fetchDevice();
-    }, 3000);
+    }, 60000);
 
     const unsubscribeBackendEvents = subscribeBackendEvents({
       onDeviceState: (event) => {
@@ -369,7 +368,6 @@ const DeviceDetail = () => {
         title: 'Dados atualizados',
         description: 'As informações de conexão foram salvas com sucesso.',
       });
-      setEditingConnection(false);
       fetchDevice({ showLoader: false });
     }
   };
@@ -382,7 +380,6 @@ const DeviceDetail = () => {
       mdns_hostname: device?.mdns_hostname || '',
       mqtt_topic: device?.mqtt_topic || '',
     });
-    setEditingConnection(false);
   };
 
   if (loading || !device) {
@@ -491,42 +488,12 @@ const DeviceDetail = () => {
                     <Wifi className="w-4 h-4 text-purple-300" />
                     <p className="text-sm uppercase tracking-[0.2em] text-gray-500">Dados de conexão</p>
                   </div>
-                  {!editingConnection ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditingConnection(true)}
-                      className="border-purple-500/30 bg-black/30 text-gray-300 hover:bg-purple-600/20 hover:text-white"
-                    >
-                      <Edit3 className="w-4 h-4 mr-2" />
-                      Editar
-                    </Button>
-                  ) : (
-                    <div className="mobile-button-row flex gap-2 sm:flex-row">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleCancelEdit}
-                        className="border-gray-500/30 bg-black/30 text-gray-300 hover:bg-gray-600/20"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Cancelar
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleSaveConnection}
-                        disabled={sending}
-                        className="bg-purple-600 hover:bg-purple-700"
-                      >
-                        <Save className="w-4 h-4 mr-2" />
-                        {sending ? 'Salvando...' : 'Salvar'}
-                      </Button>
-                    </div>
-                  )}
+                  <span className="rounded-full border border-purple-500/20 bg-black/25 px-3 py-1 text-xs font-medium text-gray-400">
+                    Somente leitura
+                  </span>
                 </div>
 
-                {!editingConnection ? (
-                  <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <p className="text-xs text-gray-500">ID do dispositivo</p>
                       <p className="text-sm text-white">{connectionData.device_id || 'Não informado'}</p>
@@ -547,9 +514,9 @@ const DeviceDetail = () => {
                       <p className="text-xs text-gray-500">Tópico MQTT personalizado</p>
                       <p className="text-sm text-white break-words">{connectionData.mqtt_topic || 'Padrão do sistema'}</p>
                     </div>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
+                </div>
+                {false && (
+                  <div className="hidden">
                     <div>
                       <Label htmlFor="device_id" className="text-white">ID do dispositivo</Label>
                       <Input

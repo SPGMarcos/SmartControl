@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { buildCheckoutPayload, fetchBillingJson } from '@/lib/billing';
 const BillingCheckout = () => {
   const { session } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const startedRef = useRef(false);
   const [error, setError] = useState('');
   const priceId = new URLSearchParams(location.search).get('price_id');
@@ -31,6 +32,11 @@ const BillingCheckout = () => {
           body: buildCheckoutPayload(priceId),
         });
 
+        if (payload.mode === 'subscription_update') {
+          navigate('/billing/success?subscription_updated=true', { replace: true });
+          return;
+        }
+
         if (payload.url) {
           window.location.assign(payload.url);
           return;
@@ -43,7 +49,7 @@ const BillingCheckout = () => {
     };
 
     startCheckout();
-  }, [priceId, session?.access_token]);
+  }, [navigate, priceId, session?.access_token]);
 
   return (
     <>

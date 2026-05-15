@@ -10,6 +10,7 @@ import {
   validateEmail,
   validatePassword,
 } from '@/lib/security';
+import { getAuthCallbackUrl, isAuthCallbackPath } from '@/lib/authRedirect';
 
 const AuthContext = createContext(undefined);
 const SESSION_REMEMBER_KEY = 'smartcontrol.remember_session';
@@ -54,17 +55,21 @@ export const getRememberSessionPreference = () => {
   return getStoredValue(window.localStorage, SESSION_REMEMBER_KEY) === 'true';
 };
 
-const isPasswordRecoveryUrl = () => {
+const isAuthActionUrl = () => {
   if (typeof window === 'undefined') return false;
 
   const search = window.location.search || '';
   const hash = window.location.hash || '';
+  const pathname = window.location.pathname || '';
 
   return (
+    isAuthCallbackPath(pathname) ||
     search.includes('reset_password=true') ||
     search.includes('type=recovery') ||
+    search.includes('type=signup') ||
     search.includes('code=') ||
     hash.includes('type=recovery') ||
+    hash.includes('type=signup') ||
     hash.includes('access_token')
   );
 };
@@ -200,7 +205,7 @@ export const AuthProvider = ({ children }) => {
       const rememberSession = getRememberSessionPreference();
       const hasBrowserSession = hasActiveBrowserSession();
 
-      if (isPasswordRecoveryUrl()) {
+      if (isAuthActionUrl()) {
         markSessionPolicy(false);
       } else if (!rememberSession && !hasBrowserSession) {
         await finishLocalSignOut();
@@ -294,6 +299,7 @@ export const AuthProvider = ({ children }) => {
         full_name: sanitizeText(options.data?.full_name || '', 80),
         role: 'user',
       },
+      emailRedirectTo: options.emailRedirectTo || getAuthCallbackUrl(),
     };
 
     const { error } = await supabase.auth.signUp({
@@ -307,6 +313,43 @@ export const AuthProvider = ({ children }) => {
         variant: 'destructive',
         title: 'Nao foi possivel criar a conta',
         description: getSafeAuthErrorMessage('Revise os dados informados e tente novamente.'),
+      });
+    }
+
+    return { error };
+  }, [toast]);
+
+  const resendConfirmationEmail = useCallback(async (email) => {
+    const normalizedEmail = normalizeEmail(email);
+    const emailError = validateEmail(normalizedEmail);
+
+    if (emailError) {
+      toast({
+        variant: 'destructive',
+        title: 'Email invalido',
+        description: emailError,
+      });
+      return { error: { message: emailError } };
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: normalizedEmail,
+      options: {
+        emailRedirectTo: getAuthCallbackUrl(),
+      },
+    });
+
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Nao foi possivel reenviar',
+        description: 'Aguarde alguns instantes e tente novamente.',
+      });
+    } else {
+      toast({
+        title: 'Email reenviado',
+        description: 'Confira sua caixa de entrada e spam.',
       });
     }
 
@@ -445,9 +488,10 @@ export const AuthProvider = ({ children }) => {
     signUp,
     signIn,
     resetPassword,
+    resendConfirmationEmail,
     updatePassword,
     signOut,
-  }), [user, session, loading, signUp, signIn, resetPassword, updatePassword, signOut]);
+  }), [user, session, loading, signUp, signIn, resetPassword, resendConfirmationEmail, updatePassword, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

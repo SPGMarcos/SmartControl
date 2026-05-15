@@ -401,7 +401,7 @@ const Dashboard = () => {
 
     const polling = window.setInterval(() => {
       fetchData();
-    }, 3000);
+    }, 60000);
 
     const deviceSub = supabase.channel('public:devices')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'devices', filter: `user_id=eq.${user?.id}` }, () => {
@@ -417,7 +417,7 @@ const Dashboard = () => {
 
     const unsubscribeBackendEvents = subscribeBackendEvents({
       onDeviceState: (event) => {
-        if (!event.user_id || event.user_id === user.id) scheduleRefresh();
+        if (!event.user_id || event.user_id === user.id) scheduleRefresh(80);
       },
       onCommandAck: (event) => {
         if (!event.user_id || event.user_id === user.id) scheduleRefresh(40);

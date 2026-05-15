@@ -145,6 +145,24 @@ export const getPlanConfigByPriceId = (priceId, env = process.env) =>
 export const getPlanConfigByKey = (key) =>
   STRIPE_PLAN_CONFIGS.find((config) => config.key === key || normalizePlanKey(config.key) === normalizePlanKey(key)) || null;
 
+export const getPlanConfigByStripeMetadata = ({ metadata = {}, productName = '', lookupKey = '' } = {}) => {
+  const explicitKey = normalizePlanKey(
+    metadata.plan_key ||
+    metadata.smartcontrol_plan_key ||
+    metadata.smartcontrol_plan ||
+    lookupKey ||
+    productName,
+  );
+  const exactConfig = getPlanConfigByKey(explicitKey);
+  if (exactConfig) return exactConfig;
+
+  const searchableKey = normalizePlanKey(`${lookupKey} ${productName}`);
+  return STRIPE_PLAN_CONFIGS.find((config) => {
+    const configKey = normalizePlanKey(config.key);
+    return searchableKey.includes(configKey);
+  }) || null;
+};
+
 export const buildPlanPermissions = (plan = FREE_PLAN) => {
   const metadata = plan.metadata || {};
   const deviceLimit = toPositiveInteger(plan.device_limit, FREE_PLAN.device_limit);
@@ -167,16 +185,21 @@ export const normalizePlanFromStripePrice = ({ price, env = process.env, config 
     ...productMetadata,
     ...priceMetadata,
   };
+  const inferredConfig = config || getPlanConfigByStripeMetadata({
+    metadata,
+    productName: product.name,
+    lookupKey: price.lookup_key,
+  });
   const key = normalizePlanKey(
     metadata.plan_key ||
     metadata.smartcontrol_plan_key ||
     metadata.smartcontrol_plan ||
-    config?.key ||
+    inferredConfig?.key ||
     price.lookup_key ||
     product.name ||
     price.id,
   );
-  const planConfig = config || getPlanConfigByKey(key) || getPlanConfigByPriceId(price.id, env);
+  const planConfig = inferredConfig || getPlanConfigByKey(key) || getPlanConfigByPriceId(price.id, env);
   const features = parseMetadataList(metadata.features || metadata.benefits || metadata.resources);
   const deviceLimit = toPositiveInteger(
     metadata.device_limit || metadata.devices || metadata.max_devices,

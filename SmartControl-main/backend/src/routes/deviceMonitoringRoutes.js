@@ -150,9 +150,9 @@ const buildOutages = ({ logs, device, timeoutMs, now }) => {
 const presenceEventsToLogs = (events = []) =>
   events.map((event) => ({
     id: event.id,
-    type: event.event_type === 'online' ? 'presence_online' : 'presence_offline',
+    type: ['online', 'reconnect'].includes(event.event_type) ? 'presence_online' : 'presence_offline',
     payload: {
-      online: event.event_type === 'online',
+      online: ['online', 'reconnect'].includes(event.event_type),
       reason: event.reason,
       metadata: event.metadata || {},
     },

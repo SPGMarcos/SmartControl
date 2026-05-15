@@ -1,13 +1,31 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, Clock3, ServerCrash, Wifi, WifiOff } from 'lucide-react';
+import { Activity, Clock3, RefreshCw, ServerCrash, Signal, Wifi, WifiOff, Zap } from 'lucide-react';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { backendUrl } from '@/lib/backend';
 import { subscribeBackendEvents } from '@/lib/realtimeEvents';
 
-const stateClass = {
-  online: 'bg-green-400/80 shadow-green-400/20',
-  offline: 'bg-red-400/80 shadow-red-400/20',
-  unknown: 'bg-white/10',
+const rangeOptions = [
+  { value: '24h', label: '24h', hours: 24 },
+  { value: '72h', label: '72h', hours: 72 },
+  { value: '7d', label: '7 dias', hours: 168 },
+];
+
+const eventLabels = {
+  presence_online: 'Online',
+  presence_offline: 'Offline',
+  online: 'Online',
+  offline: 'Offline',
+  reconnect: 'Reconexao',
+  timeout: 'Timeout',
+};
+
+const eventTone = {
+  online: 'monitoring-dot-online',
+  presence_online: 'monitoring-dot-online',
+  reconnect: 'monitoring-dot-reconnect',
+  offline: 'monitoring-dot-offline',
+  presence_offline: 'monitoring-dot-offline',
+  timeout: 'monitoring-dot-offline',
 };
 
 const formatDateTime = (value) => {
@@ -22,26 +40,79 @@ const formatMinutes = (minutes = 0) => {
   return rest ? `${hours}h ${rest}min` : `${hours}h`;
 };
 
-const MonitoringTile = ({ icon: Icon, label, value, accent = 'text-purple-300' }) => (
-  <div className="rounded-2xl border border-purple-500/20 bg-black/25 p-4">
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-sm text-gray-400">{label}</p>
-        <p className="mt-2 break-words text-2xl font-bold text-white">{value}</p>
-      </div>
-      <Icon className={`h-7 w-7 flex-none ${accent}`} />
+const parseEventTime = (event = {}) => new Date(event.created_at || event.started_at || 0).getTime();
+
+const getEventKind = (event = {}) => {
+  const type = String(event.type || event.event_type || '').toLowerCase();
+  if (type.includes('reconnect')) return 'reconnect';
+  if (type.includes('timeout')) return 'timeout';
+  if (type.includes('offline')) return 'presence_offline';
+  if (type.includes('online') || type.includes('heartbeat')) return 'presence_online';
+  return type || 'event';
+};
+
+const getEventLabel = (event = {}) => {
+  const kind = getEventKind(event);
+  return eventLabels[kind] || kind.replace(/_/g, ' ');
+};
+
+const MonitoringMetric = ({ icon: Icon, label, value, tone = '' }) => (
+  <div className="monitoring-metric">
+    <div className="min-w-0">
+      <p className="monitoring-label">{label}</p>
+      <p className="monitoring-value">{value}</p>
     </div>
+    <Icon className={`h-5 w-5 flex-none ${tone}`} />
   </div>
 );
+
+const AvailabilityRail = ({ timeline = [], range }) => {
+  const buckets = useMemo(() => {
+    const allBuckets = timeline.flatMap((day) =>
+      (day.hours || []).map((bucket) => ({
+        ...bucket,
+        at: new Date(`${day.date}T${String(bucket.hour).padStart(2, '0')}:00:00.000Z`).getTime(),
+      })),
+    );
+    const cutoff = Date.now() - range.hours * 60 * 60 * 1000;
+    return allBuckets.filter((bucket) => bucket.at >= cutoff).slice(-range.hours);
+  }, [timeline, range.hours]);
+
+  if (buckets.length === 0) {
+    return (
+      <div className="monitoring-empty">
+        Aguardando heartbeat real para iniciar o historico.
+      </div>
+    );
+  }
+
+  return (
+    <div className="monitoring-rail" aria-label="Linha do tempo de disponibilidade">
+      {buckets.map((bucket, index) => (
+        <span
+          key={`${bucket.at}-${index}`}
+          title={`${new Date(bucket.at).toLocaleString('pt-BR')} - ${bucket.state}`}
+          className={`monitoring-bar monitoring-bar-${bucket.state || 'unknown'}`}
+        />
+      ))}
+    </div>
+  );
+};
 
 const DeviceMonitoringPanel = ({ device }) => {
   const { session } = useAuth();
   const [monitoring, setMonitoring] = useState(null);
+  const [rangeKey, setRangeKey] = useState('24h');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [lastRefreshAt, setLastRefreshAt] = useState('');
 
-  const loadMonitoring = async () => {
+  const selectedRange = rangeOptions.find((item) => item.value === rangeKey) || rangeOptions[0];
+
+  const loadMonitoring = async ({ silent = false } = {}) => {
     if (!backendUrl || !device?.id) return;
+    if (silent) setRefreshing(true);
 
     try {
       const response = await fetch(`${backendUrl}/api/devices/${device.id}/monitoring`, {
@@ -54,24 +125,26 @@ const DeviceMonitoringPanel = ({ device }) => {
       if (!response.ok) throw new Error(payload.error || 'Nao foi possivel carregar o monitoramento.');
 
       setMonitoring(payload);
+      setLastRefreshAt(new Date().toISOString());
       setError('');
     } catch (requestError) {
       setError(requestError.message || 'Nao foi possivel carregar o monitoramento.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
     loadMonitoring();
 
-    const polling = window.setInterval(loadMonitoring, 15000);
+    const polling = window.setInterval(() => loadMonitoring({ silent: true }), 60000);
     const unsubscribe = subscribeBackendEvents({
       onDeviceState: (event) => {
-        if (event.device_id === device?.id) window.setTimeout(loadMonitoring, 120);
+        if (event.device_id === device?.id) window.setTimeout(() => loadMonitoring({ silent: true }), 120);
       },
       onCommandAck: (event) => {
-        if (event.device_id === device?.id) window.setTimeout(loadMonitoring, 120);
+        if (event.device_id === device?.id) window.setTimeout(() => loadMonitoring({ silent: true }), 120);
       },
     });
 
@@ -81,120 +154,135 @@ const DeviceMonitoringPanel = ({ device }) => {
     };
   }, [device?.id, session?.access_token]);
 
-  const hourLabels = useMemo(() => Array.from({ length: 24 }, (_, hour) => hour), []);
+  const summary = monitoring?.summary || {};
+  const events = useMemo(() => {
+    const cutoff = Date.now() - selectedRange.hours * 60 * 60 * 1000;
+    return (monitoring?.events || [])
+      .filter((event) => parseEventTime(event) >= cutoff)
+      .sort((a, b) => parseEventTime(b) - parseEventTime(a));
+  }, [monitoring?.events, selectedRange.hours]);
+  const reconnects = events.filter((event) => getEventKind(event) === 'reconnect').length;
+  const offlineEvents = events.filter((event) => ['presence_offline', 'timeout'].includes(getEventKind(event))).length;
+  const telemetryEvents = events.filter((event) => String(event.type || '').includes('telemetry')).length;
+  const lastEvent = events[0];
 
   if (loading) {
     return (
-      <section className="gradient-card mobile-card rounded-2xl border border-purple-500/30 p-4 sm:rounded-3xl sm:p-8">
-        <div className="h-6 w-52 animate-pulse rounded bg-white/10" />
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-24 animate-pulse rounded-2xl bg-white/10" />
-          ))}
-        </div>
+      <section className="monitoring-card">
+        <div className="h-5 w-48 animate-pulse rounded bg-white/10" />
+        <div className="mt-5 h-28 animate-pulse rounded-xl bg-white/10" />
       </section>
     );
   }
 
-  const summary = monitoring?.summary || {};
-
   return (
-    <section className="gradient-card mobile-card rounded-2xl border border-purple-500/30 p-4 sm:rounded-3xl sm:p-8">
+    <section className="monitoring-card">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <p className="text-sm uppercase tracking-[0.25em] text-purple-300">Monitoramento individual</p>
-          <h2 className="mt-3 text-2xl font-bold text-white sm:text-3xl">Saude operacional do dispositivo</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
-            Uptime, quedas e comunicacao MQTT/WebSocket concentrados neste dispositivo.
+          <p className="monitoring-kicker">Monitoramento</p>
+          <h2 className="monitoring-title">Disponibilidade real</h2>
+          <p className="monitoring-copy">
+            Baseado apenas em heartbeat, disponibilidade e eventos recebidos do dispositivo.
           </p>
         </div>
-        <span className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-2 text-sm ${
-          summary.online ? 'border-green-400/30 bg-green-500/10 text-green-100' : 'border-red-400/30 bg-red-500/10 text-red-100'
-        }`}>
-          {summary.online ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-          {summary.online ? 'Online agora' : 'Offline agora'}
-        </span>
-      </div>
 
-      {error && (
-        <div className="mt-5 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-          {error}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`monitoring-status ${summary.online ? 'is-online' : 'is-offline'}`}>
+            {summary.online ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+            {summary.online ? 'Online' : 'Offline'}
+          </span>
+          <button
+            type="button"
+            onClick={() => loadMonitoring({ silent: true })}
+            className="monitoring-icon-button"
+            aria-label="Atualizar monitoramento"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
         </div>
-      )}
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MonitoringTile icon={Activity} label="Uptime 7 dias" value={`${summary.uptime_percent || 0}%`} accent="text-green-300" />
-        <MonitoringTile icon={ServerCrash} label="Tempo offline" value={formatMinutes(summary.offline_minutes || 0)} accent="text-red-300" />
-        <MonitoringTile icon={Clock3} label="Ultima comunicacao" value={formatDateTime(summary.last_communication)} accent="text-blue-300" />
-        <MonitoringTile icon={WifiOff} label="Quedas registradas" value={summary.downtime_incidents || 0} accent="text-amber-300" />
       </div>
 
-      <div className="mt-8 rounded-2xl border border-purple-500/20 bg-black/25 p-4">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {error && <div className="monitoring-alert">{error}</div>}
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        {rangeOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => setRangeKey(option.value)}
+            className={`monitoring-range ${rangeKey === option.value ? 'active' : ''}`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MonitoringMetric icon={Activity} label="Uptime" value={`${summary.uptime_percent || 0}%`} tone="text-green-300" />
+        <MonitoringMetric icon={ServerCrash} label="Offline" value={formatMinutes(summary.offline_minutes || 0)} tone="text-red-300" />
+        <MonitoringMetric icon={Zap} label="Quedas" value={offlineEvents || summary.downtime_incidents || 0} tone="text-amber-300" />
+        <MonitoringMetric icon={Signal} label="Reconexoes" value={reconnects} tone="text-blue-300" />
+      </div>
+
+      <div className="monitoring-section">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-white">Mapa semanal de disponibilidade</h3>
-            <p className="text-sm text-gray-400">Cada bloco representa uma hora; vermelho destaca periodos offline.</p>
+            <h3 className="monitoring-section-title">Timeline</h3>
+            <p className="monitoring-copy">Verde indica comunicacao ativa, vermelho indica queda ou timeout.</p>
           </div>
-          <div className="flex flex-wrap gap-3 text-xs text-gray-400">
-            <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-green-400" /> online</span>
-            <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-red-400" /> offline</span>
-            <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-white/20" /> sem dado</span>
-          </div>
+          <p className="monitoring-meta">
+            Ultima comunicacao: {formatDateTime(summary.last_communication)}
+          </p>
         </div>
-
-        <div className="overflow-x-auto pb-2">
-          <div className="min-w-[780px]">
-            <div className="grid grid-cols-[72px_repeat(24,minmax(20px,1fr))] gap-1 text-[11px] text-gray-500">
-              <div />
-              {hourLabels.map((hour) => (
-                <div key={hour} className="text-center">
-                  {[0, 6, 12, 18, 23].includes(hour) ? `${hour}h` : ''}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-2 space-y-1">
-              {(monitoring?.timeline || []).map((day) => (
-                <div key={day.date} className="grid grid-cols-[72px_repeat(24,minmax(20px,1fr))] gap-1">
-                  <div className="flex items-center truncate pr-2 text-xs font-medium uppercase text-gray-400">
-                    {day.label}
-                  </div>
-                  {day.hours.map((bucket) => (
-                    <span
-                      key={`${day.date}-${bucket.hour}`}
-                      title={`${day.date} ${String(bucket.hour).padStart(2, '0')}:00 - ${bucket.state}`}
-                      className={`h-6 rounded-sm shadow-sm ${stateClass[bucket.state] || stateClass.unknown}`}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
+        <AvailabilityRail timeline={monitoring?.timeline || []} range={selectedRange} />
+        <div className="monitoring-legend">
+          <span><i className="monitoring-swatch monitoring-swatch-online" /> online</span>
+          <span><i className="monitoring-swatch monitoring-swatch-offline" /> offline</span>
+          <span><i className="monitoring-swatch monitoring-swatch-unknown" /> sem dado</span>
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-purple-500/20 bg-black/25 p-4">
-        <h3 className="text-lg font-semibold text-white">Historico de quedas</h3>
-        <div className="mt-4 space-y-3">
-          {(monitoring?.outages || []).length > 0 ? monitoring.outages.map((outage) => (
-            <div key={`${outage.started_at}-${outage.ended_at || 'open'}`} className="flex flex-col gap-2 rounded-xl bg-black/25 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-white">
-                  Inicio: {formatDateTime(outage.started_at)}
-                </p>
-                <p className="text-xs text-gray-400">
-                  Fim: {outage.ended_at ? formatDateTime(outage.ended_at) : 'Ainda offline ou aguardando novo heartbeat'}
-                </p>
-              </div>
-              <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-semibold text-red-100">
-                {formatMinutes(outage.duration_minutes)}
-              </span>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.42fr)]">
+        <div className="monitoring-section">
+          <h3 className="monitoring-section-title">Eventos recentes</h3>
+          <div className="mt-4 space-y-2">
+            {events.length > 0 ? events.slice(0, 8).map((event) => {
+              const kind = getEventKind(event);
+              return (
+                <div key={event.id || `${kind}-${parseEventTime(event)}`} className="monitoring-event">
+                  <span className={`monitoring-dot ${eventTone[kind] || 'monitoring-dot-neutral'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="monitoring-event-title">{getEventLabel(event)}</p>
+                    <p className="monitoring-meta">{formatDateTime(event.created_at || event.started_at)}</p>
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="monitoring-empty">Nenhum evento real nessa janela.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="monitoring-section">
+          <h3 className="monitoring-section-title">Sinal atual</h3>
+          <div className="mt-4 space-y-3">
+            <div className="monitoring-mini-row">
+              <span>Telemetria</span>
+              <strong>{telemetryEvents}</strong>
             </div>
-          )) : (
-            <p className="rounded-xl bg-black/25 p-3 text-sm text-gray-400">
-              Nenhuma queda detectada nos ultimos 7 dias.
-            </p>
-          )}
+            <div className="monitoring-mini-row">
+              <span>Ultimo evento</span>
+              <strong>{lastEvent ? getEventLabel(lastEvent) : 'Sem evento'}</strong>
+            </div>
+            <div className="monitoring-mini-row">
+              <span>Atualizado</span>
+              <strong>{lastRefreshAt ? new Date(lastRefreshAt).toLocaleTimeString('pt-BR') : '-'}</strong>
+            </div>
+            <div className="monitoring-mini-row">
+              <span>Timeout</span>
+              <strong>{summary.heartbeat_timeout_ms ? `${Math.round(summary.heartbeat_timeout_ms / 1000)}s` : '-'}</strong>
+            </div>
+          </div>
         </div>
       </div>
     </section>

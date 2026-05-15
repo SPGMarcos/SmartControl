@@ -9,6 +9,7 @@ import { isSessionExpired } from '@/lib/security'
 const Home = React.lazy(() => import('@/pages/Home'))
 const Login = React.lazy(() => import('@/pages/Login'))
 const Register = React.lazy(() => import('@/pages/Register'))
+const AuthCallback = React.lazy(() => import('@/pages/AuthCallback'))
 const Dashboard = React.lazy(() => import('@/pages/Dashboard'))
 const Devices = React.lazy(() => import('@/pages/Devices'))
 const AddDevice = React.lazy(() => import('@/pages/AddDevices'))
@@ -53,6 +54,7 @@ const routes = [
     noLayout: true
   },
   { path: '/register', element: <Register />, isPublic: true, noLayout: true },
+  { path: '/auth/callback', element: <AuthCallback />, isPublic: true, noLayout: true },
   { path: '/dashboard', element: <Dashboard />, isPrivate: true },
   { path: '/devices', element: <Devices />, isPrivate: true },
   { path: '/devices/:id', element: <DeviceDetail />, isPrivate: true },

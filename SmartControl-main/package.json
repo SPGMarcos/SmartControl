@@ -4,10 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "dev:frontend": "vite --host 127.0.0.1 --port 5173",
+    "dev:backend": "npm --prefix backend run start",
+    "dev:backend:watch": "npm --prefix backend run dev",
     "build": "vite build && node scripts/create-gh-pages-fallback.mjs",
+    "build:pages": "vite build && node scripts/create-gh-pages-fallback.mjs",
     "build:vite": "vite build",
     "preview": "vite preview",
+    "preview:pages": "node scripts/serve-dist.mjs",
+    "validate:frontend": "npm run build",
     "serve:dist": "node scripts/serve-dist.mjs",
     "deploy": "npm run build && gh-pages -d dist"
   },

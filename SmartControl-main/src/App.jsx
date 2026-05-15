@@ -4,6 +4,7 @@ import { AuthProvider } from "@/contexts/SupabaseAuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Toaster } from "@/components/ui/toaster";
 import AppRoutes from "@/routes/routes";
+import { getAuthParams, isAuthCallbackPath } from "@/lib/authRedirect";
 import LoadingScreen from "@/components/LoadingScreen"; // 👈 importa o loading
 
 const routerBaseName =
@@ -11,25 +12,27 @@ const routerBaseName =
     ? import.meta.env.BASE_URL.replace(/\/$/, '')
     : undefined;
 
-function PasswordRecoveryRedirect() {
+function AuthActionRedirect() {
   const location = useLocation();
   const navigate = useNavigate();
 
   React.useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
-    const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+    const authParams = getAuthParams({ search: location.search, hash: location.hash });
     const isRecoveryFlow =
       searchParams.get('reset_password') === 'true' ||
-      searchParams.get('type') === 'recovery' ||
-      searchParams.has('code') ||
-      searchParams.has('access_token') ||
-      hashParams.get('type') === 'recovery' ||
-      hashParams.has('access_token');
+      authParams.type === 'recovery';
     const isLoginPage = location.pathname.endsWith('/login');
+    const isCallbackPage = isAuthCallbackPath(location.pathname);
 
     if (isRecoveryFlow && !isLoginPage) {
       searchParams.set('reset_password', 'true');
       navigate(`/login?${searchParams.toString()}${location.hash}`, { replace: true });
+      return;
+    }
+
+    if (authParams.hasAuthSignal && !isRecoveryFlow && !isCallbackPage) {
+      navigate(`/auth/callback${location.search}${location.hash}`, { replace: true });
     }
   }, [location.hash, location.pathname, location.search, navigate]);
 
@@ -41,7 +44,7 @@ function App() {
     <ThemeProvider>
       <Router basename={routerBaseName}>
         <AuthProvider>
-          <PasswordRecoveryRedirect />
+          <AuthActionRedirect />
           <Suspense fallback={<LoadingScreen />}>
             <AppRoutes />
           </Suspense>

@@ -55,13 +55,13 @@ const Footer = () => {
                 <span className="break-words">(38) 99917-6405</span>
               </a>
               <a
-                href="https://instagram.com/marcosgabrielfer"
+                href="https://instagram.com/smart_control_iot"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex min-w-0 items-center gap-2 text-gray-400 hover:text-purple-400 transition-colors"
               >
                 <Instagram className="h-5 w-5 flex-none" />
-                <span className="break-words">@marcosgabrielfer</span>
+                <span className="break-words">@smart_control_iot</span>
               </a>
             </div>
           </div>

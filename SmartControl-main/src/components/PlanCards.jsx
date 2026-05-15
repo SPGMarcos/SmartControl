@@ -11,7 +11,7 @@ import {
   Tractor,
   Warehouse,
 } from 'lucide-react';
-import { formatPlanPrice, getIntervalLabel } from '@/lib/billing';
+import { dedupeBillingPlans, formatPlanPrice, getBillingPlanIdentity, getIntervalLabel } from '@/lib/billing';
 
 const planIcons = {
   free: LockKeyhole,
@@ -53,6 +53,11 @@ const PlanCards = ({
   currentPlanKey = '',
   ctaLabel = 'Assinar plano',
 }) => {
+  const visiblePlans = dedupeBillingPlans(plans, {
+    includeFree: plans.some((plan) => plan?.is_free || plan?.key === 'free'),
+    source: 'PlanCards',
+  });
+
   if (loading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-6">
@@ -63,18 +68,27 @@ const PlanCards = ({
     );
   }
 
-  if (error && plans.length === 0) {
+  if (error && visiblePlans.length === 0) {
     return (
-      <div className="gradient-card rounded-2xl border border-red-500/30 p-6 text-center text-gray-300">
+      <div className="theme-card rounded-2xl border border-red-500/40 p-6 text-center text-sm font-medium text-red-300">
         {error}
+      </div>
+    );
+  }
+
+  if (visiblePlans.length === 0) {
+    return (
+      <div className="theme-card rounded-2xl border border-amber-500/40 p-6 text-center text-sm font-medium text-amber-200">
+        Nenhum plano ativo foi retornado pelo Stripe agora. Atualize os produtos/precos no Stripe ou tente sincronizar novamente.
       </div>
     );
   }
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-6">
-      {plans.map((plan, index) => {
+      {visiblePlans.map((plan, index) => {
         const Icon = getPlanIcon(plan);
+        const identity = getBillingPlanIdentity(plan);
         const isCurrent = (
           (currentPriceId && plan.stripe_price_id === currentPriceId) ||
           (currentPlanKey && plan.key === currentPlanKey)
@@ -83,23 +97,23 @@ const PlanCards = ({
 
         return (
           <motion.button
-            key={plan.id || plan.stripe_price_id || plan.key}
+            key={identity.renderKey}
             type="button"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: index * 0.06 }}
             viewport={{ once: true }}
             onClick={() => onSelect?.(plan)}
-            disabled={isBusy || (!plan.checkout_available && !plan.is_free)}
-            className={`gradient-card mobile-card group flex h-full min-h-[380px] flex-col rounded-2xl border p-5 text-left transition-all hover:-translate-y-1 hover:border-purple-300/70 hover:shadow-xl hover:shadow-purple-950/30 focus:outline-none focus:ring-2 focus:ring-purple-300/70 sm:p-6 ${
+            disabled={isBusy}
+            className={`theme-card mobile-card group flex h-full min-h-[380px] flex-col rounded-2xl border p-5 text-left transition-all hover:-translate-y-1 hover:border-purple-300/70 hover:shadow-xl hover:shadow-purple-950/30 focus:outline-none focus:ring-2 focus:ring-purple-300/70 sm:p-6 ${
               isCurrent ? 'border-purple-300/80 shadow-lg shadow-purple-950/30' : 'border-purple-500/20'
             } ${isBusy ? 'cursor-wait opacity-80' : 'cursor-pointer'}`}
           >
             <div className="mb-5 flex flex-col items-start gap-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
-              <span className="rounded-2xl border border-white/10 bg-purple-500/10 p-3 transition group-hover:bg-purple-500/20">
+              <span className="rounded-2xl border border-purple-500/20 bg-purple-500/10 p-3 transition group-hover:bg-purple-500/20">
                 <Icon className="h-7 w-7 text-purple-300" />
               </span>
-              <span className="max-w-full rounded-full bg-white/5 px-3 py-1 text-xs text-gray-300">
+              <span className="max-w-full rounded-full border border-purple-500/20 bg-white/5 px-3 py-1 text-xs font-semibold text-gray-300">
                 {isCurrent ? 'Plano atual' : plan.profile}
               </span>
             </div>

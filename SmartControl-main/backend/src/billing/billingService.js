@@ -1,9 +1,11 @@
 import Stripe from 'stripe';
 import {
   FREE_PLAN,
+  STRIPE_PLAN_CONFIGS,
   buildPlanPermissions,
   getConfiguredPlanPriceIds,
   getPlanConfigByPriceId,
+  getPlanConfigByStripeMetadata,
   normalizePlanFromStripePrice,
   normalizePlanFromSubscriptionRow,
   normalizePlanKey,
@@ -30,6 +32,14 @@ const getStripeId = (value) => {
   if (!value) return null;
   if (typeof value === 'string') return value;
   return value.id || null;
+};
+
+const isBillingDebugEnabled = (env = process.env) =>
+  String(env.BILLING_DEBUG || env.STRIPE_BILLING_DEBUG || '').toLowerCase() === 'true';
+
+const logBillingDebug = (env, event, payload = {}) => {
+  if (!isBillingDebugEnabled(env)) return;
+  console.info(`[billing] ${event}`, payload);
 };
 
 const toIsoFromStripeTimestamp = (value) => {
@@ -77,6 +87,79 @@ const sanitizeReturnUrl = (url, { req, env = process.env } = {}) => {
   }
 };
 
+const discoverStripePlans = async ({ stripe, env = process.env } = {}) => {
+  const response = await stripe.prices.list({
+    active: true,
+    type: 'recurring',
+    limit: 100,
+    expand: ['data.product'],
+  });
+  const recurringPrices = response.data.filter((price) => Boolean(price.recurring));
+  const smartControlPrices = recurringPrices.filter((price) => {
+    const product = typeof price.product === 'object' ? price.product : {};
+    const metadata = { ...(product.metadata || {}), ...(price.metadata || {}) };
+    const productName = String(product.name || '').toLowerCase();
+
+    return (
+      metadata.smartcontrol === 'true' ||
+      metadata.app === 'smartcontrol' ||
+      metadata.platform === 'smartcontrol' ||
+      productName.includes('smartcontrol')
+    );
+  });
+
+  return (smartControlPrices.length > 0 ? smartControlPrices : recurringPrices)
+    .map((price) => ({ price, config: getPlanConfigByPriceId(price.id, env) }));
+};
+
+const planNames = {
+  residencial_smart: 'SmartControl Residencial Smart',
+  horta_urbana: 'SmartControl Horta Urbana',
+  produtor_essencial: 'SmartControl Produtor Essencial',
+  agro_profissional: 'SmartControl Agro Profissional',
+  estufa_inteligente: 'SmartControl Estufa Inteligente',
+  agro_escala: 'SmartControl Agro Escala',
+};
+
+const planDescriptions = {
+  residencial_smart: 'Automacao residencial com painel web, MQTT e monitoramento essencial.',
+  horta_urbana: 'Irrigacao e sensores para hortas urbanas e pequenos cultivos.',
+  produtor_essencial: 'Automacao remota para pequenos produtores com ate 25 dispositivos.',
+  agro_profissional: 'Controle agricola profissional para bombas, setores e monitoramento remoto.',
+  estufa_inteligente: 'Monitoramento e controle de estufas automatizadas.',
+  agro_escala: 'Plano escalavel para multiplas unidades e grandes produtores.',
+};
+
+const buildConfiguredPlanFallback = (config, priceId = '') => {
+  const plan = {
+    id: priceId || config.key,
+    key: config.key,
+    name: planNames[config.key] || `SmartControl ${config.key}`,
+    profile: config.profile,
+    description: planDescriptions[config.key] || 'Plano SmartControl configurado para venda.',
+    stripe_price_id: priceId || null,
+    stripe_product_id: null,
+    unit_amount: null,
+    currency: 'brl',
+    recurring: { interval: 'month', interval_count: 1 },
+    device_limit: config.deviceLimit,
+    features: config.features,
+    metadata: {
+      plan_key: config.key,
+      source: 'configured_catalog_fallback',
+    },
+    sort: config.sort,
+    active: true,
+    is_free: false,
+    checkout_available: Boolean(priceId),
+  };
+
+  return {
+    ...plan,
+    permissions: buildPlanPermissions(plan),
+  };
+};
+
 export const listBillingPlans = async ({ stripe, env = process.env, includeFree = false, forceRefresh = false } = {}) => {
   if (!stripe) {
     return includeFree ? [FREE_PLAN] : [];
@@ -104,38 +187,81 @@ export const listBillingPlans = async ({ stripe, env = process.env, includeFree 
         console.warn(`Stripe price ${config.priceId} nao pode ser carregado:`, error.message);
       }
     }
-  } else {
-    const response = await stripe.prices.list({
-      active: true,
-      type: 'recurring',
-      limit: 100,
-      expand: ['data.product'],
-    });
-    const recurringPrices = response.data.filter((price) => Boolean(price.recurring));
-    const smartControlPrices = recurringPrices.filter((price) => {
-      const product = typeof price.product === 'object' ? price.product : {};
-      const metadata = { ...(product.metadata || {}), ...(price.metadata || {}) };
-      const productName = String(product.name || '').toLowerCase();
+  }
 
-      return (
-        metadata.smartcontrol === 'true' ||
-        metadata.app === 'smartcontrol' ||
-        metadata.platform === 'smartcontrol' ||
-        productName.includes('smartcontrol')
-      );
+  if (configuredPlans.length === 0 || prices.length < configuredPlans.length) {
+    const discoveredPrices = await discoverStripePlans({ stripe, env });
+    const knownPriceIds = new Set(prices.map(({ price }) => price.id));
+    discoveredPrices.forEach((entry) => {
+      if (!knownPriceIds.has(entry.price.id)) {
+        prices.push(entry);
+        knownPriceIds.add(entry.price.id);
+      }
     });
-
-    (smartControlPrices.length > 0 ? smartControlPrices : recurringPrices)
-      .forEach((price) => prices.push({ price, config: getPlanConfigByPriceId(price.id, env) }));
   }
 
   const uniquePlans = new Map();
+  const duplicatePlans = [];
   prices.forEach(({ price, config }) => {
     const plan = normalizePlanFromStripePrice({ price, env, config });
-    if (plan.active) uniquePlans.set(plan.stripe_price_id, plan);
+    if (!plan.active) return;
+
+    const product = typeof price.product === 'object' && price.product ? price.product : {};
+    const planConfig = config || getPlanConfigByStripeMetadata({
+      metadata: {
+        ...(product.metadata || {}),
+        ...(price.metadata || {}),
+      },
+      productName: product.name,
+      lookupKey: price.lookup_key,
+    });
+    const dedupeKey = planConfig?.key || plan.key || plan.stripe_price_id;
+    const existingPlan = uniquePlans.get(dedupeKey);
+    const shouldReplace =
+      !existingPlan ||
+      (config && existingPlan.stripe_price_id !== config.priceId) ||
+      (typeof plan.unit_amount === 'number' && typeof existingPlan.unit_amount !== 'number');
+
+    if (shouldReplace) {
+      if (existingPlan) {
+        duplicatePlans.push({
+          key: dedupeKey,
+          kept: plan.stripe_price_id,
+          dropped: existingPlan.stripe_price_id,
+          reason: 'replaced_by_configured_or_complete_plan',
+        });
+      }
+      uniquePlans.set(dedupeKey, plan);
+      return;
+    }
+
+    duplicatePlans.push({
+      key: dedupeKey,
+      kept: existingPlan.stripe_price_id,
+      dropped: plan.stripe_price_id,
+      reason: 'duplicate_plan_identity',
+    });
+  });
+  configuredPlans.forEach((config) => {
+    if (!uniquePlans.has(config.key)) {
+      uniquePlans.set(config.key, buildConfiguredPlanFallback(config, config.priceId));
+    }
   });
 
+  if (uniquePlans.size === 0) {
+    STRIPE_PLAN_CONFIGS.forEach((config) => {
+      uniquePlans.set(config.key, buildConfiguredPlanFallback(config));
+    });
+  }
+
   const plans = Array.from(uniquePlans.values()).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
+  logBillingDebug(env, 'plans:list', {
+    configured: configuredPlans.map((config) => ({ key: config.key, price_id: config.priceId })),
+    discovered_count: prices.length,
+    returned_count: plans.length,
+    duplicates: duplicatePlans,
+  });
+
   planCache = {
     expiresAt: Date.now() + PLAN_CACHE_TTL_MS,
     plans,
@@ -215,7 +341,20 @@ export const getOrCreateStripeCustomer = async ({ stripe, supabase, user }) => {
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (existing?.stripe_customer_id) return existing.stripe_customer_id;
+  if (existing?.stripe_customer_id) {
+    try {
+      const customer = await stripe.customers.retrieve(existing.stripe_customer_id);
+      if (!customer?.deleted) return existing.stripe_customer_id;
+    } catch (error) {
+      if (error?.type !== 'StripeInvalidRequestError') throw error;
+      console.warn(`Customer Stripe ${existing.stripe_customer_id} nao existe mais. Um novo customer sera criado.`);
+    }
+
+    await supabase
+      .from('billing_customers')
+      .delete()
+      .eq('user_id', user.id);
+  }
 
   const customer = await stripe.customers.create({
     email: user.email || undefined,
@@ -237,6 +376,81 @@ export const getOrCreateStripeCustomer = async ({ stripe, supabase, user }) => {
   });
 
   return customer.id;
+};
+
+const upsertBillingCustomerReference = async ({ supabase, user, customerId }) => {
+  if (!customerId || !user?.id) return;
+
+  await supabase.from('billing_customers').upsert({
+    user_id: user.id,
+    stripe_customer_id: customerId,
+    email: user.email || null,
+    name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+    updated_at: new Date().toISOString(),
+  }, {
+    onConflict: 'user_id',
+  });
+};
+
+const getStripeCustomerForBilling = async ({ stripe, supabase, user, activeSubscription = null }) => {
+  const subscriptionCustomerId = activeSubscription?.stripe_customer_id || null;
+
+  if (subscriptionCustomerId) {
+    try {
+      const customer = await stripe.customers.retrieve(subscriptionCustomerId);
+      if (!customer?.deleted) {
+        await upsertBillingCustomerReference({ supabase, user, customerId: subscriptionCustomerId });
+        return subscriptionCustomerId;
+      }
+    } catch (error) {
+      if (error?.type !== 'StripeInvalidRequestError') throw error;
+      console.warn(`Customer Stripe ${subscriptionCustomerId} da assinatura ativa nao existe mais.`);
+    }
+  }
+
+  return getOrCreateStripeCustomer({ stripe, supabase, user });
+};
+
+const createPortalSession = async ({ stripe, env = process.env, customerId, returnUrl, flowData = null }) => {
+  const params = {
+    customer: customerId,
+    return_url: returnUrl,
+  };
+
+  if (flowData) {
+    params.flow_data = flowData;
+  }
+
+  try {
+    const portalSession = await stripe.billingPortal.sessions.create(params);
+
+    if (!portalSession?.url) {
+      const error = new Error('Stripe nao retornou uma URL valida para o portal de assinatura.');
+      error.statusCode = 502;
+      error.code = 'billing_portal_url_missing';
+      throw error;
+    }
+
+    return portalSession;
+  } catch (error) {
+    const message = `${error?.message || ''}`.toLowerCase();
+    if (message.includes('configuration') || message.includes('billing portal')) {
+      error.statusCode = 409;
+      error.code = 'billing_portal_not_configured';
+      error.message = 'Portal de cobranca do Stripe nao configurado. Ative o Customer Portal no painel Stripe para permitir troca de plano, cancelamento e cartao.';
+    } else if (message.includes('features.subscription_update.products') || message.includes('price must also be included')) {
+      error.statusCode = 409;
+      error.code = 'billing_portal_price_not_allowed';
+      error.message = 'Este preco ainda nao esta habilitado no Customer Portal do Stripe. Adicione o produto/preco nas configuracoes do portal para permitir troca de plano.';
+    }
+
+    logBillingDebug(env, 'portal:create_failed', {
+      code: error.code || error.type || null,
+      message: error.message,
+      has_flow: Boolean(flowData),
+    });
+    throw error;
+  }
 };
 
 export const syncStripeCustomerForUser = async ({ stripe, supabase, env = process.env, user, sessionId = null }) => {
@@ -285,6 +499,47 @@ export const syncStripeCustomerForUser = async ({ stripe, supabase, env = proces
 
   if (!customerId) {
     return { synced: syncedSubscriptions.some(Boolean), reason: 'stripe_customer_not_found' };
+  }
+
+  try {
+    const customer = await stripe.customers.retrieve(customerId);
+    if (customer?.deleted) {
+      await supabase
+        .from('subscriptions')
+        .update({
+          status: 'canceled',
+          cancel_at_period_end: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id)
+        .in('status', ACTIVE_SUBSCRIPTION_STATUSES);
+
+      await supabase
+        .from('billing_customers')
+        .delete()
+        .eq('user_id', user.id);
+
+      return { synced: true, reason: 'stripe_customer_deleted' };
+    }
+  } catch (error) {
+    if (error?.type !== 'StripeInvalidRequestError') throw error;
+
+    await supabase
+      .from('subscriptions')
+      .update({
+        status: 'canceled',
+        cancel_at_period_end: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', user.id)
+      .in('status', ACTIVE_SUBSCRIPTION_STATUSES);
+
+    await supabase
+      .from('billing_customers')
+      .delete()
+      .eq('user_id', user.id);
+
+    return { synced: true, reason: 'stripe_customer_missing' };
   }
 
   await supabase.from('billing_customers').upsert({
@@ -426,21 +681,88 @@ export const createCheckoutSession = async ({ stripe, supabase, env = process.en
     throw error;
   }
 
-  const customerId = await getOrCreateStripeCustomer({ stripe, supabase, user });
   const activeSubscription = await getActiveSubscriptionRow({ supabase, userId: user.id });
+  const customerId = await getStripeCustomerForBilling({ stripe, supabase, user, activeSubscription });
   const successUrl = sanitizeReturnUrl(body.success_url || body.successUrl, { req, env });
   const cancelUrl = sanitizeReturnUrl(body.cancel_url || body.cancelUrl, { req, env });
 
   if (activeSubscription?.stripe_subscription_id) {
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: cancelUrl,
+    if (activeSubscription.stripe_price_id === priceId) {
+      const portalSession = await createPortalSession({
+        stripe,
+        env,
+        customerId,
+        returnUrl: cancelUrl,
+      });
+
+      return {
+        mode: 'portal',
+        reason: 'same_plan',
+        url: portalSession.url,
+        selected_plan: selectedPlan,
+      };
+    }
+
+    const subscription = await stripe.subscriptions.retrieve(activeSubscription.stripe_subscription_id, {
+      expand: ['items.data.price.product'],
+    });
+
+    if (getStripeId(subscription.customer) !== customerId) {
+      const error = new Error('Assinatura Stripe nao pertence ao cliente autenticado.');
+      error.statusCode = 403;
+      error.code = 'subscription_customer_mismatch';
+      throw error;
+    }
+
+    const subscriptionItem = subscription.items?.data?.[0];
+
+    if (!subscriptionItem?.id) {
+      const error = new Error('Assinatura Stripe sem item recorrente para troca de plano.');
+      error.statusCode = 409;
+      error.code = 'subscription_item_missing';
+      throw error;
+    }
+
+    const portalSession = await createPortalSession({
+      stripe,
+      env,
+      customerId,
+      returnUrl: cancelUrl,
+      flowData: {
+        type: 'subscription_update_confirm',
+        subscription_update_confirm: {
+          subscription: subscription.id,
+          items: [
+            {
+              id: subscriptionItem.id,
+              price: priceId,
+              quantity: subscriptionItem.quantity || 1,
+            },
+          ],
+        },
+        after_completion: {
+          type: 'redirect',
+          redirect: {
+            return_url: successUrl,
+          },
+        },
+      },
+    });
+
+    logBillingDebug(env, 'portal:plan_change_created', {
+      customer_id: customerId,
+      subscription_id: subscription.id,
+      subscription_item_id: subscriptionItem.id,
+      price_id: priceId,
+      plan_key: selectedPlan.key,
     });
 
     return {
-      mode: 'portal',
-      reason: activeSubscription.stripe_price_id === priceId ? 'same_plan' : 'existing_subscription',
+      mode: 'portal_plan_change',
+      reason: 'existing_subscription_plan_change',
       url: portalSession.url,
+      return_url: cancelUrl,
+      subscription_id: subscription.id,
       selected_plan: selectedPlan,
     };
   }
@@ -489,15 +811,26 @@ export const createBillingPortalSession = async ({ stripe, supabase, env = proce
     throw error;
   }
 
-  const customerId = await getOrCreateStripeCustomer({ stripe, supabase, user });
+  const activeSubscription = await getActiveSubscriptionRow({ supabase, userId: user.id });
+  const customerId = await getStripeCustomerForBilling({ stripe, supabase, user, activeSubscription });
   const returnUrl = sanitizeReturnUrl(body.return_url || body.returnUrl, { req, env });
-  const portalSession = await stripe.billingPortal.sessions.create({
-    customer: customerId,
+
+  const portalSession = await createPortalSession({
+    stripe,
+    env,
+    customerId,
+    returnUrl,
+  });
+
+  logBillingDebug(env, 'portal:created', {
+    customer_id: customerId,
+    has_active_subscription: Boolean(activeSubscription?.stripe_subscription_id),
     return_url: returnUrl,
   });
 
   return {
     url: portalSession.url,
+    customer_id: customerId,
   };
 };
 
