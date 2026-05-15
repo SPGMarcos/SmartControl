@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
-import { buildCheckoutPayload, fetchBillingJson } from '@/lib/billing';
+import { buildCheckoutPayload, fetchAuthenticatedBillingJson } from '@/lib/billing';
 
 const BillingCheckout = () => {
   const { session } = useAuth();
@@ -26,7 +26,7 @@ const BillingCheckout = () => {
       }
 
       try {
-        const payload = await fetchBillingJson('/api/billing/checkout', {
+        const payload = await fetchAuthenticatedBillingJson('/api/billing/checkout', {
           token: session.access_token,
           method: 'POST',
           body: buildCheckoutPayload(priceId),

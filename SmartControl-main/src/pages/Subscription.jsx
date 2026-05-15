@@ -13,6 +13,7 @@ import {
   buildCheckoutPayload,
   buildPortalPayload,
   dedupeBillingPlans,
+  fetchAuthenticatedBillingJson,
   fetchBillingJson,
   formatBillingAmount,
   formatBillingDate,
@@ -75,7 +76,7 @@ const Subscription = () => {
 
     setBusyPriceId(plan.stripe_price_id);
     try {
-      const payload = await fetchBillingJson('/api/billing/checkout', {
+      const payload = await fetchAuthenticatedBillingJson('/api/billing/checkout', {
         token: session?.access_token,
         method: 'POST',
         body: buildCheckoutPayload(plan.stripe_price_id),
@@ -110,7 +111,7 @@ const Subscription = () => {
   const handlePortal = async () => {
     setPortalLoading(true);
     try {
-      const payload = await fetchBillingJson('/api/billing/portal', {
+      const payload = await fetchAuthenticatedBillingJson('/api/billing/portal', {
         token: session?.access_token,
         method: 'POST',
         body: buildPortalPayload(),

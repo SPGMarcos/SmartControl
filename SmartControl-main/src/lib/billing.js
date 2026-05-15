@@ -1,4 +1,5 @@
 import { backendUrl } from '@/lib/backend';
+import { supabase } from '@/lib/customSupabaseClient';
 
 export const FREE_PLAN = {
   key: 'free',
@@ -180,6 +181,38 @@ export const fetchBillingJson = async (path, { token, method = 'GET', body, sign
   }
 
   return payload;
+};
+
+export const getBillingAccessToken = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) return session.access_token;
+
+  const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+  return refreshedSession?.access_token || '';
+};
+
+export const fetchAuthenticatedBillingJson = async (path, options = {}) => {
+  let token = options.token || await getBillingAccessToken();
+
+  if (!token) {
+    const error = new Error('Sua sessao expirou. Entre novamente para continuar.');
+    error.code = 'billing_auth_required';
+    error.status = 401;
+    throw error;
+  }
+
+  try {
+    return await fetchBillingJson(path, { ...options, token });
+  } catch (requestError) {
+    if (requestError.status !== 401) throw requestError;
+
+    const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+    const refreshedToken = refreshedSession?.access_token || '';
+    if (!refreshedToken || refreshedToken === token) throw requestError;
+
+    token = refreshedToken;
+    return fetchBillingJson(path, { ...options, token });
+  }
 };
 
 export const buildCheckoutPayload = (priceId) => ({
