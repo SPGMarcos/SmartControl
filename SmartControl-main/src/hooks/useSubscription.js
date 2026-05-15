@@ -17,10 +17,20 @@ const buildFallbackOverview = () => ({
   plans: [FREE_PLAN],
 });
 
+const buildPendingOverview = () => ({
+  subscription: null,
+  current_plan: null,
+  limits: null,
+  permissions: null,
+  invoices: [],
+  plans: [],
+});
+
 export const useSubscription = () => {
   const { user, session } = useAuth();
-  const [overview, setOverview] = useState(() => buildFallbackOverview());
+  const [overview, setOverview] = useState(() => buildPendingOverview());
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState('');
   const syncedOnLoginRef = useRef('');
   const requestSeqRef = useRef(0);
@@ -54,6 +64,7 @@ export const useSubscription = () => {
       });
       if (signal?.aborted || requestSeq !== requestSeqRef.current) return;
       setOverview(normalizeOverview(payload));
+      setHasLoadedOnce(true);
     } catch (requestError) {
       if (requestError.name === 'AbortError') return;
       if (requestSeq !== requestSeqRef.current) return;
@@ -81,6 +92,7 @@ export const useSubscription = () => {
       },
     });
     setOverview(normalizeOverview(payload));
+    setHasLoadedOnce(true);
     return payload;
   }, [normalizeOverview, session?.access_token, user?.id]);
 
@@ -145,8 +157,9 @@ export const useSubscription = () => {
     invoices: overview.invoices || [],
     plans: overview.plans || [],
     loading,
+    hasLoadedOnce,
     error,
     refresh,
     sync,
-  }), [error, loading, overview, refresh, sync]);
+  }), [error, hasLoadedOnce, loading, overview, refresh, sync]);
 };

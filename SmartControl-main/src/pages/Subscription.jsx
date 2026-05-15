@@ -33,6 +33,37 @@ const InfoTile = ({ icon: Icon, label, value, accent = 'text-purple-300' }) => (
   </div>
 );
 
+const CurrentPlanSkeleton = () => (
+  <motion.section
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="theme-card mobile-card rounded-2xl p-4 sm:p-6"
+  >
+    <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="theme-panel rounded-2xl p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="h-7 w-20 animate-pulse rounded-full bg-white/10" />
+            <div className="mt-5 h-8 w-3/4 animate-pulse rounded bg-white/10" />
+            <div className="mt-4 h-4 w-2/3 animate-pulse rounded bg-white/10" />
+          </div>
+          <div className="h-16 w-32 animate-pulse rounded-2xl bg-white/10" />
+        </div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-10 animate-pulse rounded-xl bg-white/10" />
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="theme-panel h-[74px] animate-pulse rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  </motion.section>
+);
+
 const Subscription = () => {
   const { session } = useAuth();
   const { plans, loading: plansLoading, error: plansError, refresh: refreshPlans, stripeMode } = useBillingPlans({ includeFree: true });
@@ -44,11 +75,13 @@ const Subscription = () => {
     invoices,
     plans: subscriptionPlans,
     loading,
+    hasLoadedOnce,
     error,
     refresh,
   } = useSubscription();
   const [busyPriceId, setBusyPriceId] = useState('');
   const [portalLoading, setPortalLoading] = useState(false);
+  const showCurrentPlanSkeleton = loading && !hasLoadedOnce;
 
   const availablePlans = useMemo(
     () => {
@@ -162,7 +195,7 @@ const Subscription = () => {
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Atualizar
               </Button>
-              <Button type="button" onClick={handlePortal} disabled={portalLoading || currentPlan.is_free}>
+              <Button type="button" onClick={handlePortal} disabled={showCurrentPlanSkeleton || portalLoading || currentPlan.is_free}>
                 <CreditCard className="mr-2 h-4 w-4" />
                 {portalLoading ? 'Abrindo...' : 'Gerenciar assinatura'}
               </Button>
@@ -175,49 +208,53 @@ const Subscription = () => {
             </div>
           )}
 
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="theme-card mobile-card rounded-2xl p-4 sm:p-6"
-          >
-            <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-              <div className="theme-panel rounded-2xl p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <span className="theme-readable-pill inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm">
-                      <ShieldCheck className="h-4 w-4" />
-                      {subscription?.status || 'free'}
-                    </span>
-                    <h2 className="theme-title mt-4 text-3xl font-bold">{currentPlan.name}</h2>
-                    <p className="theme-muted mt-2 max-w-2xl leading-7">{currentPlan.description}</p>
-                  </div>
-                  <div className="rounded-2xl border border-purple-400/30 bg-purple-500/10 px-4 py-3 text-right">
-                    <p className="text-sm font-semibold text-purple-100">Valor</p>
-                    <p className="text-2xl font-bold text-white">
-                      {formatPlanPrice(currentPlan)}
-                      {!currentPlan.is_free && <span className="ml-1 text-sm text-gray-300">{getIntervalLabel(currentPlan)}</span>}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  {(currentPlan.features || []).map((feature) => (
-                    <div key={feature} className="flex items-start gap-3 rounded-xl border border-purple-500/10 bg-black/25 p-3 text-sm font-medium text-gray-300">
-                      <ShieldCheck className="mt-0.5 h-4 w-4 flex-none text-purple-300" />
-                      <span>{feature}</span>
+          {showCurrentPlanSkeleton ? (
+            <CurrentPlanSkeleton />
+          ) : (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="theme-card mobile-card rounded-2xl p-4 sm:p-6"
+            >
+              <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+                <div className="theme-panel rounded-2xl p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <span className="theme-readable-pill inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm">
+                        <ShieldCheck className="h-4 w-4" />
+                        {subscription?.status || 'free'}
+                      </span>
+                      <h2 className="theme-title mt-4 text-3xl font-bold">{currentPlan.name}</h2>
+                      <p className="theme-muted mt-2 max-w-2xl leading-7">{currentPlan.description}</p>
                     </div>
-                  ))}
+                    <div className="rounded-2xl border border-purple-400/30 bg-purple-500/10 px-4 py-3 text-right">
+                      <p className="text-sm font-semibold text-purple-100">Valor</p>
+                      <p className="text-2xl font-bold text-white">
+                        {formatPlanPrice(currentPlan)}
+                        {!currentPlan.is_free && <span className="ml-1 text-sm text-gray-300">{getIntervalLabel(currentPlan)}</span>}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                    {(currentPlan.features || []).map((feature) => (
+                      <div key={feature} className="flex items-start gap-3 rounded-xl border border-purple-500/10 bg-black/25 p-3 text-sm font-medium text-gray-300">
+                        <ShieldCheck className="mt-0.5 h-4 w-4 flex-none text-purple-300" />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <InfoTile icon={Layers} label="Dispositivos usados" value={`${limits.devices_used}/${limits.device_limit}`} />
+                  <InfoTile icon={Gauge} label="Disponiveis" value={limits.devices_remaining} accent="text-green-300" />
+                  <InfoTile icon={CreditCard} label="Proxima renovacao" value={formatBillingDate(subscription?.current_period_end)} accent="text-blue-300" />
+                  <InfoTile icon={Zap} label="Monitoramento avancado" value={permissions.advanced_monitoring ? 'Liberado' : 'Bloqueado'} accent={permissions.advanced_monitoring ? 'text-green-300' : 'text-amber-300'} />
                 </div>
               </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <InfoTile icon={Layers} label="Dispositivos usados" value={`${limits.devices_used}/${limits.device_limit}`} />
-                <InfoTile icon={Gauge} label="Disponiveis" value={limits.devices_remaining} accent="text-green-300" />
-                <InfoTile icon={CreditCard} label="Proxima renovacao" value={formatBillingDate(subscription?.current_period_end)} accent="text-blue-300" />
-                <InfoTile icon={Zap} label="Monitoramento avancado" value={permissions.advanced_monitoring ? 'Liberado' : 'Bloqueado'} accent={permissions.advanced_monitoring ? 'text-green-300' : 'text-amber-300'} />
-              </div>
-            </div>
-          </motion.section>
+            </motion.section>
+          )}
 
           {!limits.can_add_device && (
             <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5 text-amber-50">
