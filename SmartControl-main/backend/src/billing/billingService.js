@@ -52,6 +52,37 @@ const shouldRetryWithoutNewColumns = (error) => {
   return message.includes('column') || message.includes('schema') || message.includes('cache');
 };
 
+const isMissingStripeResourceError = (error, resourceName = '') => {
+  if (error?.type !== 'StripeInvalidRequestError') return false;
+
+  const message = `${error?.message || ''}`.toLowerCase();
+  const resource = String(resourceName || '').toLowerCase();
+  return message.includes('no such') && (!resource || message.includes(resource));
+};
+
+const markSubscriptionAsMissing = async ({ supabase, userId, subscriptionId }) => {
+  if (!userId || !subscriptionId) return;
+
+  const { error } = await supabase
+    .from('subscriptions')
+    .update({
+      status: 'canceled',
+      cancel_at_period_end: false,
+      updated_at: new Date().toISOString(),
+      metadata: {
+        stripe_missing: true,
+        missing_subscription_id: subscriptionId,
+        missing_detected_at: new Date().toISOString(),
+      },
+    })
+    .eq('user_id', userId)
+    .eq('stripe_subscription_id', subscriptionId);
+
+  if (error) {
+    console.warn(`Nao foi possivel marcar assinatura Stripe ausente ${subscriptionId}:`, error.message);
+  }
+};
+
 const sanitizeReturnUrl = (url, { req, env = process.env } = {}) => {
   const fallbackBase =
     env.APP_PUBLIC_URL ||
@@ -689,86 +720,115 @@ export const createCheckoutSession = async ({ stripe, supabase, env = process.en
   const customerId = await getStripeCustomerForBilling({ stripe, supabase, user, activeSubscription });
   const successUrl = sanitizeReturnUrl(body.success_url || body.successUrl, { req, env });
   const cancelUrl = sanitizeReturnUrl(body.cancel_url || body.cancelUrl, { req, env });
+  let checkoutReason = 'new_subscription';
 
   if (activeSubscription?.stripe_subscription_id) {
     if (activeSubscription.stripe_price_id === priceId) {
-      const portalSession = await createPortalSession({
-        stripe,
-        env,
-        customerId,
-        returnUrl: cancelUrl,
-      });
+      try {
+        await stripe.subscriptions.retrieve(activeSubscription.stripe_subscription_id);
+        const portalSession = await createPortalSession({
+          stripe,
+          env,
+          customerId,
+          returnUrl: cancelUrl,
+        });
 
-      return {
-        mode: 'portal',
-        reason: 'same_plan',
-        url: portalSession.url,
-        selected_plan: selectedPlan,
-      };
+        return {
+          mode: 'portal',
+          reason: 'same_plan',
+          url: portalSession.url,
+          selected_plan: selectedPlan,
+        };
+      } catch (error) {
+        if (!isMissingStripeResourceError(error, 'subscription')) throw error;
+
+        await markSubscriptionAsMissing({
+          supabase,
+          userId: user.id,
+          subscriptionId: activeSubscription.stripe_subscription_id,
+        });
+        checkoutReason = 'stale_subscription_recreated';
+      }
     }
 
-    const subscription = await stripe.subscriptions.retrieve(activeSubscription.stripe_subscription_id, {
-      expand: ['items.data.price.product'],
-    });
+    if (checkoutReason !== 'stale_subscription_recreated') {
+      let subscription;
+      try {
+        subscription = await stripe.subscriptions.retrieve(activeSubscription.stripe_subscription_id, {
+          expand: ['items.data.price.product'],
+        });
+      } catch (error) {
+        if (!isMissingStripeResourceError(error, 'subscription')) throw error;
 
-    if (getStripeId(subscription.customer) !== customerId) {
-      const error = new Error('Assinatura Stripe nao pertence ao cliente autenticado.');
-      error.statusCode = 403;
-      error.code = 'subscription_customer_mismatch';
-      throw error;
-    }
+        await markSubscriptionAsMissing({
+          supabase,
+          userId: user.id,
+          subscriptionId: activeSubscription.stripe_subscription_id,
+        });
+        checkoutReason = 'stale_subscription_recreated';
+      }
 
-    const subscriptionItem = subscription.items?.data?.[0];
+      if (subscription) {
+        if (getStripeId(subscription.customer) !== customerId) {
+          const error = new Error('Assinatura Stripe nao pertence ao cliente autenticado.');
+          error.statusCode = 403;
+          error.code = 'subscription_customer_mismatch';
+          throw error;
+        }
 
-    if (!subscriptionItem?.id) {
-      const error = new Error('Assinatura Stripe sem item recorrente para troca de plano.');
-      error.statusCode = 409;
-      error.code = 'subscription_item_missing';
-      throw error;
-    }
+        const subscriptionItem = subscription.items?.data?.[0];
 
-    const portalSession = await createPortalSession({
-      stripe,
-      env,
-      customerId,
-      returnUrl: cancelUrl,
-      flowData: {
-        type: 'subscription_update_confirm',
-        subscription_update_confirm: {
-          subscription: subscription.id,
-          items: [
-            {
-              id: subscriptionItem.id,
-              price: priceId,
-              quantity: subscriptionItem.quantity || 1,
+        if (!subscriptionItem?.id) {
+          const error = new Error('Assinatura Stripe sem item recorrente para troca de plano.');
+          error.statusCode = 409;
+          error.code = 'subscription_item_missing';
+          throw error;
+        }
+
+        const portalSession = await createPortalSession({
+          stripe,
+          env,
+          customerId,
+          returnUrl: cancelUrl,
+          flowData: {
+            type: 'subscription_update_confirm',
+            subscription_update_confirm: {
+              subscription: subscription.id,
+              items: [
+                {
+                  id: subscriptionItem.id,
+                  price: priceId,
+                  quantity: subscriptionItem.quantity || 1,
+                },
+              ],
             },
-          ],
-        },
-        after_completion: {
-          type: 'redirect',
-          redirect: {
-            return_url: successUrl,
+            after_completion: {
+              type: 'redirect',
+              redirect: {
+                return_url: successUrl,
+              },
+            },
           },
-        },
-      },
-    });
+        });
 
-    logBillingDebug(env, 'portal:plan_change_created', {
-      customer_id: customerId,
-      subscription_id: subscription.id,
-      subscription_item_id: subscriptionItem.id,
-      price_id: priceId,
-      plan_key: selectedPlan.key,
-    });
+        logBillingDebug(env, 'portal:plan_change_created', {
+          customer_id: customerId,
+          subscription_id: subscription.id,
+          subscription_item_id: subscriptionItem.id,
+          price_id: priceId,
+          plan_key: selectedPlan.key,
+        });
 
-    return {
-      mode: 'portal_plan_change',
-      reason: 'existing_subscription_plan_change',
-      url: portalSession.url,
-      return_url: cancelUrl,
-      subscription_id: subscription.id,
-      selected_plan: selectedPlan,
-    };
+        return {
+          mode: 'portal_plan_change',
+          reason: 'existing_subscription_plan_change',
+          url: portalSession.url,
+          return_url: cancelUrl,
+          subscription_id: subscription.id,
+          selected_plan: selectedPlan,
+        };
+      }
+    }
   }
 
   const checkoutSession = await stripe.checkout.sessions.create({
@@ -802,6 +862,7 @@ export const createCheckoutSession = async ({ stripe, supabase, env = process.en
 
   return {
     mode: 'checkout',
+    reason: checkoutReason,
     url: checkoutSession.url,
     session_id: checkoutSession.id,
     selected_plan: selectedPlan,
