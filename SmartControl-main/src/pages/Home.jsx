@@ -18,12 +18,14 @@ import {
 import { Button } from '@/components/ui/button';
 import MarketplaceModal from '@/components/MarketplaceModal';
 import PlanCards from '@/components/PlanCards';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { useBillingPlans } from '@/hooks/useBillingPlans';
 import heroImage from '@/assets/smartcontrol-hero.svg';
 
 const Home = () => {
   const navigate = useNavigate();
-  const { plans: billingPlans, loading: plansLoading, error: plansError } = useBillingPlans();
+  const { session } = useAuth();
+  const { plans: billingPlans, loading: plansLoading, error: plansError } = useBillingPlans({ includeFree: true });
   const basePath = import.meta.env.BASE_URL || '/';
   const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
   const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://smartcontrol.app';
@@ -88,8 +90,13 @@ const Home = () => {
   ];
 
   const handlePlanSelect = (plan) => {
+    if (plan?.is_free || plan?.key === 'free') {
+      navigate(session ? '/dashboard' : '/register?redirect=/dashboard');
+      return;
+    }
+
     if (!plan?.stripe_price_id) {
-      navigate('/register');
+      navigate('/register?redirect=/dashboard');
       return;
     }
 

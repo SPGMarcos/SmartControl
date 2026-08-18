@@ -92,6 +92,7 @@ const PlanCards = ({
           (currentPlanKey && plan.key === currentPlanKey)
         );
         const isBusy = busyPriceId && busyPriceId === plan.stripe_price_id;
+        const actionLabel = plan.is_free && !isCurrent ? 'Começar grátis' : ctaLabel;
 
         return (
           <motion.button
@@ -138,7 +139,7 @@ const PlanCards = ({
                 : 'bg-purple-600 text-white group-hover:bg-purple-500'
             }`}>
               {isBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isCurrent ? 'Gerenciar assinatura' : ctaLabel}
+              {isCurrent ? 'Gerenciar assinatura' : actionLabel}
             </span>
           </motion.button>
         );
