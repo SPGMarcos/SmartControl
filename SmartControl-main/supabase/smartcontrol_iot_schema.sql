@@ -253,7 +253,6 @@ begin
       when 'residencial_smart' then 10
       when 'horta_urbana' then 12
       when 'produtor_essencial' then 25
-      when 'agro_profissional' then 75
       when 'estufa_inteligente' then 60
       when 'agro_escala' then 250
       else 3

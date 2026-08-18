@@ -147,7 +147,6 @@ const planNames = {
   residencial_smart: 'SmartControl Residencial Smart',
   horta_urbana: 'SmartControl Horta Urbana',
   produtor_essencial: 'SmartControl Produtor Essencial',
-  agro_profissional: 'SmartControl Agro Profissional',
   estufa_inteligente: 'SmartControl Estufa Inteligente',
   agro_escala: 'SmartControl Agro Escala',
 };
@@ -156,7 +155,6 @@ const planDescriptions = {
   residencial_smart: 'Automacao residencial com painel web, MQTT e monitoramento essencial.',
   horta_urbana: 'Irrigacao e sensores para hortas urbanas e pequenos cultivos.',
   produtor_essencial: 'Automacao remota para pequenos produtores com ate 25 dispositivos.',
-  agro_profissional: 'Controle agricola profissional para bombas, setores e monitoramento remoto.',
   estufa_inteligente: 'Monitoramento e controle de estufas automatizadas.',
   agro_escala: 'Plano escalavel para multiplas unidades e grandes produtores.',
 };

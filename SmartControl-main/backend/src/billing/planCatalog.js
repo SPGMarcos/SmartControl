@@ -57,14 +57,6 @@ export const STRIPE_PLAN_CONFIGS = [
     features: ['Ate 25 dispositivos', 'Rotinas de automacao', 'Monitoramento remoto', 'Integracao com ESP32/ESP8266'],
   },
   {
-    key: 'agro_profissional',
-    env: 'STRIPE_PRICE_AGRO_PROFISSIONAL',
-    profile: 'Agricultores',
-    sort: 40,
-    deviceLimit: 60,
-    features: ['Projetos por area', 'Controle de bombas', 'Status online/offline', 'Base para MQTT e integracoes externas'],
-  },
-  {
     key: 'estufa_inteligente',
     env: 'STRIPE_PRICE_ESTUFA_INTELIGENTE',
     profile: 'Estufas automatizadas',

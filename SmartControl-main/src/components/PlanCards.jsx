@@ -8,7 +8,6 @@ import {
   Loader2,
   LockKeyhole,
   Sprout,
-  Tractor,
   Warehouse,
 } from 'lucide-react';
 import { dedupeBillingPlans, formatPlanPrice, getBillingPlanIdentity, getIntervalLabel } from '@/lib/billing';
@@ -18,7 +17,6 @@ const planIcons = {
   residencial_smart: HomeIcon,
   horta_urbana: Leaf,
   produtor_essencial: Sprout,
-  agro_profissional: Tractor,
   estufa_inteligente: Warehouse,
   agro_escala: Gauge,
 };

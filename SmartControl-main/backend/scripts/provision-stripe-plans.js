@@ -21,12 +21,6 @@ const PLAN_DETAILS = {
     amountEnv: 'STRIPE_AMOUNT_PRODUTOR_ESSENCIAL',
     defaultAmount: '149.90',
   },
-  agro_profissional: {
-    name: 'SmartControl Agro Profissional',
-    description: 'Controle agricola profissional para bombas, setores e monitoramento remoto.',
-    amountEnv: 'STRIPE_AMOUNT_AGRO_PROFISSIONAL',
-    defaultAmount: '299.90',
-  },
   estufa_inteligente: {
     name: 'SmartControl Estufa Inteligente',
     description: 'Monitoramento e controle de estufas automatizadas.',
